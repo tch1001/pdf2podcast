@@ -60,7 +60,23 @@ cloudflared tunnel --url http://127.0.0.1:8766
 Use the resulting HTTPS URL in the clients. A temporary tunnel URL can change
 when the tunnel restarts. All clients using the shared mobile token see the same
 library. Treat that token as a credential and do not publish it or put it in a URL.
-This is a shared-token prototype, not per-user authentication or a public upload service.
+Native clients continue to use the private mobile token. The hosted browser client uses
+Google Identity Services and a secure server-side session instead: configure a Web OAuth
+client whose authorized JavaScript origin is the public HTTPS origin, then set
+`PDF2PODCAST_GOOGLE_CLIENT_ID`. Set `PDF2PODCAST_ADMIN_EMAILS` to a comma-separated list
+of owner accounts that may see aggregate usage and every conversion.
+
+Browser uploads are capped at 50 MB, 20 upload attempts per rolling minute, and one new
+processing submission per rolling minute. Identical PDF bytes share one canonical job
+across users, while each user gets the conversion in their own library. These limits are
+configurable through the corresponding variables in `.env.example`.
+
+Every web account requires one-time acceptance of versioned public-upload terms during
+initial account setup. The server records the accepting user, timestamp, and terms
+version; every subsequent browser upload appears in the public catalogue and exposes its
+source PDF and generated media. Native-app uploads remain private unless separately
+released by the operator or linked to a browser account whose owner accepted public
+distribution. Google emails are never exposed by the public catalogue.
 
 ## iOS app
 
@@ -88,9 +104,10 @@ the shared backend.
 python3 -m http.server 8080 --directory apps/Pdf2Podcast/web
 ```
 
-Open `http://localhost:8080`, then enter the backend URL and mobile token in
-connection settings. For a hosted HTTPS frontend, use an HTTPS backend as well.
-The web client stores its connection settings in that browser.
+The production server serves this client at `/` so browser sessions, uploads, and audio
+remain same-origin. During frontend-only development, serve the directory locally and
+proxy `/api` to the backend; Google sign-in requires that local origin to be registered
+on the OAuth client.
 
 ## Credential checks
 

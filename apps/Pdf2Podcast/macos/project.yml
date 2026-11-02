@@ -8,7 +8,8 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     DEVELOPMENT_TEAM: ""
-    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_ALLOWED: NO
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 1.0
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -23,20 +24,18 @@ targets:
           - Pdf2Podcast.entitlements
       - path: ../ios/Shared
       - path: MacPDFImporter.swift
+      - path: MacPDFReadAlongView.swift
     entitlements:
       path: Pdf2PodcastMac.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.files.user-selected.read-only: true
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)io.pdf2podcast.mac
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: Pdf2Podcast
         LSApplicationCategoryType: public.app-category.books
-        Pdf2PodcastSharedKeychainGroup: $(AppIdentifierPrefix)io.pdf2podcast.mac
         UIBackgroundModes:
           - audio
         UILaunchScreen: {}

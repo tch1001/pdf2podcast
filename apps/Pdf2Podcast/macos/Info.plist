@@ -39,8 +39,6 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>Pdf2PodcastSharedKeychainGroup</key>
-	<string>$(AppIdentifierPrefix)io.pdf2podcast.mac</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

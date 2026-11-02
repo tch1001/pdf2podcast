@@ -446,3 +446,47 @@ struct PendingTask: Codable, Identifiable, Equatable {
     let detail: String
     let priority: String
 }
+
+// Searches absolute, half-open audio intervals without carrying stale state across seeks.
+// Prefix maxima also make overlapping intervals safe: the latest containing start wins.
+struct PDFReadAlongIntervalIndex: Sendable {
+    struct Entry: Sendable {
+        let start: Double
+        let end: Double
+        let index: Int
+    }
+
+    private let entries: [Entry]
+    private let maximumEnds: [Double]
+
+    init(_ candidates: [Entry]) {
+        entries = candidates.filter {
+            $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end > $0.start
+        }.sorted {
+            $0.start == $1.start ? $0.index < $1.index : $0.start < $1.start
+        }
+        var maximum = -Double.infinity
+        maximumEnds = entries.map {
+            maximum = max(maximum, $0.end)
+            return maximum
+        }
+    }
+
+    func index(at time: Double) -> Int? {
+        guard time.isFinite, time >= 0 else { return nil }
+        var lower = 0
+        var upper = entries.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if entries[middle].start <= time { lower = middle + 1 }
+            else { upper = middle }
+        }
+        var candidate = lower
+        while candidate > 0 {
+            candidate -= 1
+            guard maximumEnds[candidate] > time else { break }
+            if time < entries[candidate].end { return entries[candidate].index }
+        }
+        return nil
+    }
+}

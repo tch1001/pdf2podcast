@@ -2,7 +2,7 @@
 import UIKit
 import UniformTypeIdentifiers
 
-final class ShareViewController: UIViewController, URLSessionTaskDelegate {
+final class ShareViewController: UIViewController, URLSessionDownloadDelegate {
     private struct PreparedUpload {
         let directory: URL
         let file: URL
@@ -27,6 +27,8 @@ final class ShareViewController: UIViewController, URLSessionTaskDelegate {
     private var preparation: Progress?
     private var session: URLSession?
     private var uploadTask: URLSessionUploadTask?
+    private var downloadTask: URLSessionDownloadTask?
+    private var downloadName: String?
     private var accepted = false
     private var closed = false
 
@@ -98,43 +100,202 @@ final class ShareViewController: UIViewController, URLSessionTaskDelegate {
         do {
             guard let saved = try ShareConnectionStore.load(), saved.uploadURL != nil,
                   !saved.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ShareError(message: "Open Pdf2Podcast and save your server connection once, then share the PDF again.")
+                throw ShareError(message: "Open Pdf2Podcast once to sync your server connection, then share the PDF again.")
             }
             connection = saved
             let items = extensionContext?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []
             let providers = items.flatMap { $0.attachments ?? [] }
-                .filter { $0.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) }
-            guard providers.count == 1, let provider = providers.first else {
-                throw ShareError(message: "Share one PDF at a time to convert it to audio.")
+            let pdfs = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) }
+            let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+            let data = providers.filter { $0.registeredTypeIdentifiers.contains(UTType.data.identifier) }
+            let links = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.url.identifier) }
+            // A PDF may arrive alongside a title, thumbnail, or the page's URL.
+            let candidates = !pdfs.isEmpty ? pdfs : !files.isEmpty ? files : !data.isEmpty ? data : links
+            guard candidates.count == 1, let provider = candidates.first else {
+                let message = candidates.isEmpty
+                    ? "No PDF or file link was supplied. In the source app, export or download the PDF, then share that file."
+                    : "Share one PDF at a time to convert it to audio."
+                throw ShareError(message: message)
             }
-            let suggestedName = provider.suggestedName
-            preparation = provider.loadFileRepresentation(forTypeIdentifier: UTType.pdf.identifier) { [weak self] url, error in
-                let result: Result<PreparedUpload, Error>
-                do {
-                    if let error { throw error }
-                    guard let url else { throw ShareError(message: "The source app did not provide a readable PDF.") }
-                    // Item-provider URLs expire when this callback returns. Finish the disk copy here.
-                    result = .success(try Self.prepareMultipart(from: url, suggestedName: suggestedName))
-                } catch { result = .failure(error) }
+            if !pdfs.isEmpty {
+                loadPDFFile(provider, type: UTType.pdf.identifier)
+            } else if !files.isEmpty {
+                loadSharedURL(provider, type: UTType.fileURL.identifier)
+            } else if !data.isEmpty {
+                loadPDFFile(provider, type: UTType.data.identifier)
+            } else {
+                loadSharedURL(provider, type: UTType.url.identifier)
+            }
+        } catch { showError(Self.importError(error)) }
+    }
+
+    private func loadPDFFile(_ provider: NSItemProvider, type: String, inPlace: Bool = false) {
+        guard !closed else { return }
+        let handler: (URL?, Error?) -> Void = { [weak self] url, error in
+            if let url {
+                // Provider URLs expire when this callback returns. Copy before returning.
+                let result = Result { try Self.prepareLocalPDF(from: url, suggestedName: provider.suggestedName) }
+                self?.finishPreparation(result)
+                if self == nil, case let .success(upload) = result {
+                    try? FileManager.default.removeItem(at: upload.directory)
+                }
+            } else if !inPlace {
                 DispatchQueue.main.async { [weak self] in
-                    guard let self, !self.closed else {
-                        if case let .success(upload) = result { try? FileManager.default.removeItem(at: upload.directory) }
-                        return
-                    }
-                    self.preparation = nil
-                    self.spinner.stopAnimating()
-                    switch result {
-                    case let .success(upload):
-                        self.prepared = upload
-                        self.filenameLabel.text = upload.name
-                        let size = ByteCountFormatter.string(fromByteCount: upload.bytes, countStyle: .file)
-                        self.statusLabel.text = "\(size). Upload to your server and add it to the conversion queue."
-                        self.uploadButton.isEnabled = true
-                    case let .failure(error): self.showError(error.localizedDescription)
-                    }
+                    self?.loadPDFFile(provider, type: type, inPlace: true)
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.loadSharedURL(provider, type: UTType.fileURL.identifier)
+                }
+            } else {
+                self?.finishPreparation(.failure(error ?? ShareError(
+                    message: "The source app could not provide the PDF file. Download it into Files and share the downloaded PDF."
+                )))
+            }
+        }
+        if inPlace {
+            preparation = provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, _, error in
+                handler(url, error)
+            }
+        } else {
+            preparation = provider.loadFileRepresentation(forTypeIdentifier: type, completionHandler: handler)
+        }
+    }
+
+    private func loadSharedURL(_ provider: NSItemProvider, type: String) {
+        guard !closed else { return }
+        preparation = nil
+        provider.loadItem(forTypeIdentifier: type, options: nil) { [weak self] item, error in
+            let url: URL?
+            if let value = item as? URL {
+                url = value
+            } else if let value = item as? String {
+                url = URL(string: value)
+            } else if let value = item as? Data, let string = String(data: value, encoding: .utf8) {
+                url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines))
+            } else {
+                url = nil
+            }
+            guard let url else {
+                self?.finishPreparation(.failure(error ?? ShareError(message: "The source app did not supply a readable file link.")))
+                return
+            }
+            if url.isFileURL {
+                let result = Result { try Self.prepareLocalPDF(from: url, suggestedName: provider.suggestedName) }
+                self?.finishPreparation(result)
+                if self == nil, case let .success(upload) = result {
+                    try? FileManager.default.removeItem(at: upload.directory)
+                }
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.downloadPDF(url, suggestedName: provider.suggestedName)
                 }
             }
-        } catch { showError(error.localizedDescription) }
+        }
+    }
+
+    private func finishPreparation(_ result: Result<PreparedUpload, Error>) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.closed else {
+                if case let .success(upload) = result { try? FileManager.default.removeItem(at: upload.directory) }
+                return
+            }
+            self.preparation = nil
+            self.spinner.stopAnimating()
+            self.progressView.isHidden = true
+            switch result {
+            case let .success(upload):
+                self.prepared = upload
+                self.filenameLabel.text = upload.name
+                let size = ByteCountFormatter.string(fromByteCount: upload.bytes, countStyle: .file)
+                self.statusLabel.text = "\(size). Upload to your server and add it to the conversion queue."
+                self.uploadButton.isEnabled = true
+            case let .failure(error):
+                self.showError(Self.importError(error))
+            }
+        }
+    }
+
+    private static func prepareLocalPDF(from source: URL, suggestedName: String?) throws -> PreparedUpload {
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        var coordinationError: NSError?
+        var result: Result<PreparedUpload, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: source, options: .withoutChanges, error: &coordinationError) { readable in
+            result = Result { try prepareMultipart(from: readable, suggestedName: suggestedName) }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw ShareError(message: "The file provider could not open this PDF. Download it in Files first.") }
+        return try result.get()
+    }
+
+    private func downloadPDF(_ url: URL, suggestedName: String?) {
+        guard !closed else { return }
+        guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil, url.user == nil, url.password == nil else {
+            showError("This link cannot be downloaded. Share the PDF file itself from Files.")
+            return
+        }
+        downloadName = suggestedName
+        statusLabel.text = "Downloading the shared PDF link. Keep this screen open..."
+        progressView.progress = 0
+        progressView.isHidden = false
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 60
+        configuration.timeoutIntervalForResource = 300
+        // This session has no backend credentials or app cookies.
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
+        self.session = session
+        var request = URLRequest(url: url)
+        request.setValue("application/pdf", forHTTPHeaderField: "Accept")
+        let task = session.downloadTask(with: request)
+        downloadTask = task
+        task.resume()
+    }
+
+    private func finishDownload(_ result: Result<PreparedUpload, Error>) {
+        downloadTask = nil
+        session?.invalidateAndCancel()
+        session = nil
+        finishPreparation(result)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard !closed, downloadTask === self.downloadTask else { return }
+        guard max(totalBytesWritten, totalBytesExpectedToWrite) <= 100 * 1024 * 1024 else {
+            downloadTask.cancel()
+            finishDownload(.failure(ShareError(message: "This PDF exceeds the 100 MB share limit.")))
+            return
+        }
+        if totalBytesExpectedToWrite > 0 {
+            let fraction = min(1, Float(totalBytesWritten) / Float(totalBytesExpectedToWrite))
+            progressView.progress = fraction
+            statusLabel.text = "Downloading PDF: \(Int(fraction * 100))%. Keep this screen open."
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard !closed, downloadTask === self.downloadTask else { return }
+        guard let response = downloadTask.response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+            finishDownload(.failure(ShareError(message: "The PDF link returned HTTP \(status). If it requires login, download the PDF in your browser and share it from Files.")))
+            return
+        }
+        let suggestedName = response.suggestedFilename ?? downloadName
+        let result = Result { try Self.prepareMultipart(from: location, suggestedName: suggestedName) }
+        finishDownload(result)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard !closed, task === downloadTask, let error else { return }
+        finishDownload(.failure(error))
+    }
+
+    private static func importError(_ error: Error) -> String {
+        if let error = error as? ShareError { return error.message }
+        let failure = error as NSError
+        return "Could not open the shared PDF: \(failure.localizedDescription) [\(failure.domain) \(failure.code)]. Try downloading the PDF in Files first."
     }
 
     private static func prepareMultipart(from source: URL, suggestedName: String?) throws -> PreparedUpload {
@@ -165,7 +326,7 @@ final class ShareViewController: UIViewController, URLSessionTaskDelegate {
             var bytes: Int64 = 0
             while let chunk = try input.read(upToCount: 256 * 1024), !chunk.isEmpty {
                 if bytes == 0, chunk.range(of: Data("%PDF-".utf8)) == nil {
-                    throw ShareError(message: "This file does not appear to be a PDF. Try exporting it as a PDF first.")
+                    throw ShareError(message: "The shared item is not a PDF. If it is a webpage or login page, download or export the actual PDF and share that file.")
                 }
                 bytes += Int64(chunk.count)
                 guard bytes <= 100 * 1024 * 1024 else {
@@ -248,8 +409,14 @@ final class ShareViewController: UIViewController, URLSessionTaskDelegate {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
-        // Never forward the shared bearer token or PDF to a redirected host.
-        completionHandler(nil)
+        // Only unauthenticated PDF downloads may follow redirects; uploads never do.
+        if task === downloadTask, ["https", "http"].contains(request.url?.scheme?.lowercased() ?? ""),
+           request.url?.user == nil, request.url?.password == nil,
+           request.value(forHTTPHeaderField: "Authorization") == nil {
+            completionHandler(request)
+        } else {
+            completionHandler(nil)
+        }
     }
 
     private static func serverError(status: Int, data: Data?) -> String {
@@ -290,6 +457,7 @@ final class ShareViewController: UIViewController, URLSessionTaskDelegate {
     private func finish() {
         closed = true
         preparation?.cancel()
+        downloadTask?.cancel()
         uploadTask?.cancel()
         session?.invalidateAndCancel()
         session = nil

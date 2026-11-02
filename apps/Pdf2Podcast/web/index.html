@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#080b0f">
+  <meta name="theme-color" content="#f3efe6">
   <title>Pdf2Podcast</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+
     :root {
       color-scheme: dark;
       --bg: #080b0f;
@@ -52,7 +53,8 @@
       color: var(--muted); border-radius: 11px; font-weight: 600;
     }
     .nav-item.active { color: var(--ink); background: rgba(109,211,255,.1); }
-    .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); }
+    .nav-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--cyan); }
+    .nav-item:not(.active) .nav-dot { visibility: hidden; }
     .connection { position: absolute; left: 22px; right: 22px; bottom: 24px; color: var(--muted); font-size: 12px; }
     .connection span { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #4fd091; }
     main { margin-left: 244px; padding: 34px clamp(26px,5vw,76px) 60px; }
@@ -288,6 +290,107 @@
     .recenter { display: block; margin: -4px auto 12px; min-height: 34px; }
     .detail-back { margin-bottom: 22px; }
     #detailMessage { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #settingsButton, #settingsOverlay { display: none !important; }
+    .auth-gate {
+      position: fixed; z-index: 200; inset: 0; display: none; place-items: center; overflow-y: auto;
+      padding: max(24px,env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom));
+      background:
+        radial-gradient(circle at 18% 18%, rgba(109,211,255,.2), transparent 28rem),
+        radial-gradient(circle at 82% 86%, rgba(239,197,142,.1), transparent 25rem),
+        linear-gradient(145deg, #080b0f, #0d141b 58%, #080b0f);
+    }
+    .auth-gate { display: none !important; }
+    .signin-card {
+      position: relative; isolation: isolate; width: min(500px,100%); padding: clamp(30px,7vw,54px);
+      border: 1px solid rgba(255,255,255,.11); border-radius: 30px; overflow: hidden;
+      background: rgba(14,20,27,.86); box-shadow: 0 38px 100px rgba(0,0,0,.55); backdrop-filter: blur(24px);
+    }
+    .signin-card::after {
+      content: ""; position: absolute; z-index: -1; width: 270px; height: 270px; right: -120px; top: -130px;
+      border: 1px solid rgba(109,211,255,.34); border-radius: 50%;
+      box-shadow: 0 0 0 34px rgba(109,211,255,.035), 0 0 0 68px rgba(109,211,255,.018);
+    }
+    .signin-brand { margin-bottom: 46px; }
+    .signin-kicker { margin: 0 0 13px; color: var(--cyan); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .signin-card h1 { max-width: 390px; font-size: clamp(39px,10vw,65px); }
+    .signin-card > p { max-width: 390px; margin: 20px 0 28px; color: #a6b3bd; font-size: 16px; line-height: 1.65; }
+    .google-signin { min-height: 44px; }
+    .auth-status { min-height: 20px; margin-top: 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .auth-status.error { color: var(--danger); }
+    .account-chip { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .account-avatar {
+      width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; overflow: hidden;
+      border: 1px solid rgba(109,211,255,.28); border-radius: 50%; color: var(--cyan); background: rgba(109,211,255,.08);
+      font-weight: 800;
+    }
+    .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .account-copy { min-width: 0; }
+    .account-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 800; }
+    .account-email { max-width: 180px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
+    .signout { min-height: 36px; padding: 0 12px; color: var(--muted); font-size: 12px; }
+    .usage-dashboard { margin: 0 0 28px; }
+    .usage-shell {
+      padding: 20px; border: 1px solid var(--line); border-radius: 20px;
+      background: linear-gradient(120deg, rgba(109,211,255,.075), rgba(16,22,29,.82) 34%, rgba(16,22,29,.82));
+    }
+    .usage-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 15px; }
+    .usage-heading h2 { margin: 0; font: 800 17px/1 "Manrope"; letter-spacing: -.03em; }
+    .usage-heading span { color: var(--muted); font-size: 11px; }
+    .usage-grid { display: grid; grid-template-columns: repeat(5,minmax(100px,1fr)); gap: 9px; }
+    .usage-stat { min-width: 0; padding: 13px; border: 1px solid rgba(255,255,255,.06); border-radius: 13px; background: rgba(5,9,12,.28); }
+    .usage-value { color: var(--ink); font: 800 21px/1 "Manrope"; overflow-wrap: anywhere; }
+    .usage-label { margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; text-transform: uppercase; letter-spacing: .08em; }
+    .usage-live { color: var(--cyan); }
+    .admin-usage { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .admin-usage summary { color: var(--summary); cursor: pointer; font-size: 12px; font-weight: 800; }
+    .admin-table-wrap { margin-top: 12px; overflow-x: auto; }
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .admin-table th, .admin-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    .admin-table th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .upload-limit { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .upload-transfer { display: grid; gap: 9px; margin: 16px 0; color: var(--muted); font-size: 12px; }
+    .upload-transfer[hidden] { display: none; }
+    .upload-transfer-line { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; font-variant-numeric: tabular-nums; }
+    .upload-transfer progress { display: block; width: 100%; height: 9px; appearance: none; border: 0; border-radius: 5px; overflow: hidden; accent-color: var(--cyan); background: rgba(127,127,127,.18); }
+    .upload-transfer progress::-webkit-progress-bar { background: rgba(127,127,127,.18); border-radius: 5px; }
+    .upload-transfer progress::-webkit-progress-value { background: var(--cyan); border-radius: 5px; }
+    .upload-transfer progress::-moz-progress-bar { background: var(--cyan); border-radius: 5px; }
+    .view-tabs { display: flex; gap: 7px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.025); }
+    .view-tab { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; cursor: pointer; font-weight: 800; }
+    .view-tab.active { color: #061016; background: var(--cyan); }
+    .discovery-hero { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(280px,.6fr); gap: 18px; align-items: stretch; }
+    .discovery-copy { position: relative; overflow: hidden; min-height: 330px; padding: clamp(28px,5vw,62px); border: 1px solid var(--line); border-radius: 30px; background: linear-gradient(128deg, #112633, #101820 58%, #191913); }
+    .discovery-copy::before { content: ""; position: absolute; width: 430px; height: 430px; right: -170px; top: -210px; border: 1px solid rgba(109,211,255,.38); border-radius: 50%; box-shadow: 0 0 0 48px rgba(109,211,255,.045), 0 0 0 96px rgba(109,211,255,.025); }
+    .discovery-copy > * { position: relative; }
+    .discovery-copy h1 { max-width: 780px; font-size: clamp(44px,7vw,88px); }
+    .discovery-copy p { max-width: 620px; margin: 22px 0 0; color: #b3c1ca; font-size: clamp(15px,2vw,19px); line-height: 1.65; }
+    .discovery-card { display: flex; flex-direction: column; justify-content: space-between; min-height: 330px; padding: 27px; border: 1px solid var(--line); border-radius: 30px; background: rgba(16,22,29,.9); }
+    .discovery-card h2 { margin: 0 0 12px; font: 800 25px/1.1 "Manrope"; letter-spacing: -.04em; }
+    .discovery-card p { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
+    .discovery-card .auth-status { margin-top: 13px; }
+    .public-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 14px; }
+    .public-card { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 19px; background: rgba(16,22,29,.82); transition: border-color .18s ease, transform .18s ease; }
+    .public-card:hover { border-color: rgba(109,211,255,.3); transform: translateY(-2px); }
+    .public-card-top { display: flex; gap: 14px; min-width: 0; }
+    .public-card-copy { min-width: 0; flex: 1; }
+    .public-title { margin: 2px 0 8px; font: 800 17px/1.25 "Manrope"; overflow-wrap: anywhere; }
+    .uploader { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
+    .uploader-avatar { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; color: var(--cyan); background: rgba(109,211,255,.1); font-weight: 800; }
+    .uploader-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .public-status { margin: 16px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .public-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .public-actions a { text-decoration: none; }
+    .public-actions .primary, .public-actions .secondary { min-height: 38px; }
+    .terms-link { padding: 0; border: 0; color: var(--cyan); background: transparent; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .terms-dialog { width: min(680px,calc(100% - 28px)); max-height: min(780px,calc(100vh - 40px)); margin: 20px auto; display: flex; flex-direction: column; }
+    .terms-copy { overflow-y: auto; padding-right: 8px; }
+    .terms-copy h3 { margin: 23px 0 8px; font-size: 16px; }
+    .terms-copy p { margin: 0; white-space: pre-wrap; }
+    .terms-meta { color: var(--cyan); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .consent-box { display: flex; gap: 12px; align-items: flex-start; margin-top: 20px; padding: 16px; border: 1px solid rgba(239,197,142,.28); border-radius: 13px; background: rgba(239,197,142,.055); color: #d8c8b4; font-size: 13px; line-height: 1.55; }
+    .consent-box input { width: 19px; height: 19px; flex: 0 0 19px; margin-top: 2px; accent-color: var(--cyan); }
+    .overlay.blocking { z-index: 250; }
+    .side-nav button { width: 100%; border: 0; text-align: left; background: transparent; cursor: pointer; }
     @media (prefers-reduced-motion: reduce) { .equalizer i { animation: none; } .transcript-view.open { animation: none; } }
     @media (max-width: 800px) {
       :root { --player-h: 74px; }
@@ -296,6 +399,18 @@
       .topbar { align-items: flex-start; margin-bottom: 24px; }
       .topbar h1 { font-size: 38px; }
       .topbar { flex-wrap: wrap; }
+      .top-actions { width: 100%; flex-wrap: wrap; align-items: center; }
+      .account-chip { order: 3; margin-left: auto; }
+      .account-copy { display: none; }
+      .usage-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .usage-stat:last-child { grid-column: 1 / -1; }
+      .discovery-hero { grid-template-columns: 1fr; }
+      .discovery-copy, .discovery-card { min-height: 0; border-radius: 21px; }
+      .discovery-copy { padding: 32px 23px; }
+      .discovery-copy h1 { font-size: clamp(42px,14vw,67px); }
+      .view-tabs { width: 100%; }
+      .view-tab { flex: 1; }
+      .public-grid { grid-template-columns: 1fr; }
       .hero { padding: 22px; border-radius: 20px; }
       .hero h2 { margin: 8px 0; font-size: clamp(21px,6.2vw,31px); }
       .hero .meta { font-size: 12px; }
@@ -321,28 +436,591 @@
       .transcript-controls .control:not(.main) { display: block; }
     }
   </style>
+  <style id="reading-room-redesign">
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
+
+    :root {
+      color-scheme: light;
+      --bg: #f3efe6;
+      --panel: #fbf8f1;
+      --panel-2: #ebe5d9;
+      --ink: #211f1a;
+      --muted: #716c62;
+      --line: #d3ccbd;
+      --cyan: #9b3f2c;
+      --cyan-2: #793122;
+      --summary: #866a2b;
+      --danger: #9f2f27;
+      --player-h: 84px;
+    }
+    html, body { background: var(--bg); color: var(--ink); }
+    body {
+      background: var(--bg) !important;
+      font-family: "DM Sans", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .18;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
+      z-index: -1;
+    }
+    :focus-visible { outline-color: var(--cyan); }
+    .sidebar {
+      background: #ece6da !important;
+      border-color: var(--line) !important;
+      backdrop-filter: none !important;
+    }
+    .brand { font-family: "Newsreader", serif !important; font-size: 23px !important; font-weight: 600 !important; letter-spacing: -.025em !important; }
+    .brand-mark {
+      color: #fff !important;
+      background: var(--cyan) !important;
+      border-radius: 2px !important;
+      box-shadow: none !important;
+    }
+    .side-nav { gap: 0 !important; }
+    .nav-item {
+      border-radius: 0 !important;
+      border-bottom: 1px solid transparent;
+      color: var(--muted) !important;
+    }
+    .nav-item:hover { color: var(--ink) !important; border-bottom-color: var(--line); }
+    .nav-item.active { color: var(--ink) !important; background: transparent !important; border-bottom-color: var(--ink); }
+    .nav-dot { border-radius: 0 !important; background: var(--cyan) !important; }
+    main { max-width: 1420px; }
+    .eyebrow, .label { color: var(--cyan) !important; letter-spacing: .11em !important; }
+    h1, h2, h3, .dialog h2, .hero h2 {
+      font-family: "Newsreader", serif !important;
+      font-weight: 500 !important;
+      letter-spacing: -.025em !important;
+    }
+    h1 { line-height: 1.02 !important; }
+    h3 { font-size: 25px !important; }
+    .primary, .secondary, .speed, .close {
+      border-radius: 2px !important;
+      box-shadow: none !important;
+      font-weight: 600 !important;
+    }
+    .primary { background: var(--ink) !important; color: #fff !important; }
+    .secondary { background: transparent !important; border-color: var(--line) !important; }
+    .primary:hover { background: var(--cyan) !important; }
+    .secondary:hover { border-color: var(--ink) !important; }
+    .hero {
+      padding: 26px 0 31px !important;
+      border: 0 !important;
+      border-top: 1px solid var(--ink) !important;
+      border-bottom: 1px solid var(--line) !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+    }
+    .hero::before, .cover, .play-big, #heroPlay, #heroTranscript { display: none !important; }
+    .hero h2 { max-width: 800px !important; font-size: clamp(30px,4vw,54px) !important; }
+    section { margin-top: 48px; }
+    .processing { gap: 0 !important; border-top: 1px solid var(--line); }
+    .process-card, .chapter-block {
+      border: 0 !important;
+      border-bottom: 1px solid var(--line) !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+    }
+    .progress { border-radius: 0 !important; background: var(--panel-2) !important; }
+    .progress i { border-radius: 0 !important; background: var(--cyan) !important; box-shadow: none !important; }
+    .library { border-top-color: var(--ink) !important; }
+    .track {
+      grid-template-columns: 42px minmax(0,1fr) minmax(88px,.24fr) minmax(88px,.24fr) !important;
+      min-height: 88px !important;
+      padding: 15px 6px !important;
+      border-radius: 0 !important;
+      border-color: var(--line) !important;
+      cursor: pointer !important;
+    }
+    .track:hover, .track.current { background: #eae4d8 !important; }
+    .track.current .track-title { color: var(--cyan) !important; }
+    .track-play { display: none !important; }
+    .track-title { font-family: "Newsreader", serif; font-size: 20px; font-weight: 500 !important; }
+    .track-sub, .track-cell { color: var(--muted) !important; }
+    .status.processing, .status.queued { color: var(--cyan) !important; }
+    .paper-panel, .summary-panel { border-radius: 0 !important; background: rgba(155,63,44,.04) !important; }
+    .paragraph-prose { color: var(--ink) !important; font-family: "Newsreader", serif; font-size: 18px !important; }
+    .player {
+      color: #f7f2e8 !important;
+      background: #25231e !important;
+      border-color: #3d3930 !important;
+      backdrop-filter: none !important;
+    }
+    .player .control { color: #c8c0b2 !important; }
+    .player .control.main { color: var(--ink) !important; background: #f7f2e8 !important; }
+    .player .now-sub, .player .timeline { color: #aaa294 !important; }
+    .player .speed { color: #e9e1d3 !important; border-color: #5c564b !important; }
+    .overlay { background: rgba(33,31,26,.58) !important; backdrop-filter: blur(3px) !important; }
+    .dialog {
+      color: var(--ink) !important;
+      background: var(--panel) !important;
+      border-color: var(--line) !important;
+      border-radius: 3px !important;
+      box-shadow: 0 20px 60px rgba(46,39,28,.22) !important;
+    }
+    .field input, .paper-search input, .sleep-timer select {
+      color: var(--ink) !important;
+      background: #fffdf8 !important;
+      border-color: var(--line) !important;
+      border-radius: 2px !important;
+    }
+    .transcript-view { background: #26241f !important; }
+    .transcript-top { background: #26241f !important; }
+    .transcript-line { color: #8f897e !important; font-family: "Newsreader", serif !important; font-weight: 500 !important; letter-spacing: -.02em !important; }
+    .transcript-line.active { color: #fffaf0 !important; }
+    .transcript-line.guide { border-radius: 0 !important; background: rgba(255,255,255,.035) !important; }
+    .transcript-controls { border-radius: 3px !important; background: #302d27 !important; box-shadow: none !important; }
+    #signinPanel { display: none !important; }
+
+    .rr-modal {
+      position: fixed;
+      z-index: 420;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 20px;
+      background: rgba(33,31,26,.62);
+    }
+    .rr-modal.open { display: grid; }
+    .rr-signin {
+      width: min(520px,100%);
+      padding: clamp(24px,5vw,42px);
+      color: var(--ink);
+      background: #fbf8f1;
+      border: 1px solid #bdb4a4;
+      box-shadow: 0 24px 80px rgba(46,39,28,.28);
+    }
+    .rr-signin-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    .rr-signin h2 { margin: 0; font: 500 34px/1.05 "Newsreader",serif; letter-spacing: -.025em; }
+    .rr-signin p { color: var(--muted); line-height: 1.6; }
+    .rr-x { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 25px; }
+    .rr-consent {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 11px;
+      align-items: start;
+      margin: 24px 0 13px;
+      padding: 18px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .rr-consent input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--cyan); }
+    .rr-terms-link { padding: 0; border: 0; color: var(--cyan); background: none; text-decoration: underline; cursor: pointer; }
+    .rr-google { min-height: 50px; margin-top: 20px; }
+    .rr-google-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .rr-google-note { margin: 13px 0 0; color: var(--muted); font-size: 12px; }
+    .rr-error { color: var(--danger) !important; }
+
+    .pdf-reader {
+      position: fixed;
+      z-index: 350;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto minmax(0,1fr);
+      color: var(--ink);
+      background: #d8d2c7;
+    }
+    .pdf-reader.open { display: grid; }
+    .pdf-reader-head {
+      z-index: 5;
+      display: grid;
+      grid-template-columns: auto minmax(0,1fr) auto;
+      align-items: center;
+      gap: 18px;
+      min-height: 72px;
+      padding: 10px max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));
+      background: #f6f1e8;
+      border-bottom: 1px solid #bdb5a7;
+    }
+    .pdf-reader-back {
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .pdf-reader-title { min-width: 0; }
+    .pdf-reader-title h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 21px/1.15 "Newsreader",serif; }
+    .pdf-reader-meta { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .pdf-reader-transport { display: flex; align-items: center; gap: 10px; min-width: 115px; justify-content: flex-end; }
+    .pdf-reader-transport button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--ink);
+      border-radius: 50%;
+      color: #fff;
+      background: var(--ink);
+      cursor: pointer;
+    }
+    .pdf-reader-state { max-width: 100px; color: var(--muted); font-size: 11px; line-height: 1.25; }
+    .pdf-reader-body { position: relative; min-height: 0; }
+    .pdf-reader-scroll {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding: 30px max(12px,calc((100vw - 1040px)/2)) 130px;
+      scroll-behavior: smooth;
+    }
+    .pdf-pages { display: grid; justify-items: center; gap: 24px; }
+    .pdf-page {
+      position: relative;
+      width: min(920px,100%);
+      aspect-ratio: 8.5 / 11;
+      background: #fff;
+      box-shadow: 0 4px 22px rgba(44,39,32,.18);
+    }
+    .pdf-page canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+    .pdf-page-label { position: absolute; right: 8px; bottom: -19px; color: #6f695f; font-size: 10px; }
+    .pdf-page-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+    .textLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      overflow: hidden;
+      opacity: 1;
+      line-height: 1;
+      text-size-adjust: none;
+      forced-color-adjust: none;
+      transform-origin: 0 0;
+    }
+    .textLayer :is(span,br) {
+      position: absolute;
+      color: transparent;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0 0;
+    }
+    .textLayer span.markedContent { top: 0; height: 0; }
+    .textLayer ::selection { color: transparent; background: rgba(102,137,175,.35); }
+    .pdf-anchor-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+    .pdf-highlight {
+      position: absolute;
+      border-radius: 2px;
+      background: transparent;
+      box-shadow: inset 3px 0 transparent;
+      transition: background .16s ease, box-shadow .16s ease;
+      pointer-events: none;
+    }
+    .pdf-highlight.active { background: rgba(220,174,57,.24); box-shadow: inset 3px 0 #bd7724; }
+    .pdf-word-highlight { position: absolute; pointer-events: none; background: rgba(229,157,25,.48); box-shadow: inset 0 -2px #a96212; border-radius: 2px; }
+    .pdf-marker {
+      position: absolute;
+      z-index: 4;
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #8f8779;
+      border-radius: 50%;
+      color: #fff;
+      background: #342f28;
+      box-shadow: 0 2px 5px rgba(0,0,0,.18);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .pdf-marker:hover, .pdf-marker.active { background: var(--cyan); border-color: var(--cyan); }
+    .pdf-marker svg { width: 12px; height: 12px; fill: currentColor; }
+    .pdf-marker .spinner { width: 13px; height: 13px; }
+    .pdf-reader-note {
+      position: absolute;
+      z-index: 6;
+      top: 12px;
+      left: 50%;
+      translate: -50% 0;
+      width: min(660px,calc(100% - 28px));
+      padding: 10px 14px;
+      color: #574f43;
+      background: #fff8dc;
+      border: 1px solid #cfbe7f;
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .pdf-recenter {
+      position: absolute;
+      z-index: 7;
+      right: max(20px,env(safe-area-inset-right));
+      bottom: max(22px,env(safe-area-inset-bottom));
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid #fff;
+      border-radius: 2px;
+      color: #fff;
+      background: #342f28;
+      box-shadow: 0 4px 18px rgba(0,0,0,.18);
+      cursor: pointer;
+    }
+    .pdf-recenter[hidden] { display: none; }
+
+    @media (max-width: 760px) {
+      .sidebar { position: static !important; width: auto !important; height: auto !important; padding: 16px !important; border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
+      .side-nav { display: flex !important; margin-top: 16px !important; overflow-x: auto; }
+      .connection { display: none !important; }
+      main { margin-left: 0 !important; padding: 24px 17px 48px !important; }
+      .topbar { align-items: flex-start !important; margin-bottom: 27px !important; }
+      h1 { font-size: 39px !important; }
+      .track { grid-template-columns: 30px minmax(0,1fr) !important; gap: 10px !important; }
+      .track-cell { display: none !important; }
+      .player { grid-template-columns: minmax(0,1fr) auto !important; height: 78px !important; padding-inline: 14px !important; }
+      .player .transport { justify-items: end !important; }
+      .player .timeline, .player-right { display: none !important; }
+      .pdf-reader-head { grid-template-columns: auto minmax(0,1fr) auto; gap: 9px; min-height: 64px; padding-top: max(9px,env(safe-area-inset-top)); }
+      .pdf-reader-back { width: 38px; padding: 0; font-size: 0; }
+      .pdf-reader-back::before { content: "←"; font-size: 19px; }
+      .pdf-reader-title h2 { font-size: 17px; }
+      .pdf-reader-state { display: none; }
+      .pdf-reader-transport { min-width: 42px; }
+      .pdf-reader-scroll { padding: 14px 4px 100px; }
+      .pdf-pages { gap: 18px; }
+      .pdf-page { width: 100%; box-shadow: 0 2px 10px rgba(44,39,32,.2); }
+      .pdf-marker { width: 27px; height: 27px; }
+      .rr-signin { padding: 25px 20px; }
+    }
+  </style>
+  <style id="interface-refinements">
+    html { scrollbar-gutter: stable; }
+    main { margin-inline: auto !important; width: 100%; }
+    #homeLink { color: var(--ink); text-decoration: none; white-space: nowrap; }
+    .catalogue-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .catalogue-controls label { font-size: 12px; color: var(--muted); }
+    .catalogue-controls select { min-height: 34px; padding: 6px 9px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 2px; font: inherit; font-size: 13px; }
+    @media(max-width:600px) { #discoverView .section-head { flex-wrap: wrap; align-items: flex-start; gap: 15px; } .catalogue-controls { width: 100%; justify-content: flex-start; } .catalogue-controls .section-note { margin-left: auto; } }
+    .catalogue-order { margin: 7px 0 0; font-size: 12px; color: var(--muted); }
+    .paper-engagement { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 12px; }
+    .public-status > .copy-error { display: flex; width: fit-content; }
+    .sharing-summary { margin-top: 22px; }
+    .sharing-summary > summary { cursor: pointer; font-size: 14px; }
+    .sharing-summary a { color: var(--ink); text-underline-offset: 3px; }
+    .sharing-summary p { font-size: 12px; color: var(--muted); }
+    .site-footer { display: flex; gap: 20px; margin-top: 48px; font-size: 12px; }
+    .site-footer a { color: var(--muted); text-underline-offset: 3px; }
+    #usageDashboard .usage-grid { grid-template-columns: repeat(2,minmax(0,180px)); }
+    .copy-error { display: inline-flex; align-items: center; margin: 8px 0 0; min-height: 32px; padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+    .error-copy-fallback { display: block; width: 100%; min-height: 100px; margin-top: 8px; padding: 8px; font-size: 12px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); }
+    .error-message { display: block; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .pdf-reader-head { position: relative; }
+    #pdfReaderShare { color: var(--ink); background: transparent; border-color: var(--line); }
+    #pdfReaderShare svg { fill: none; width: 19px; height: 19px; }
+    .share-panel { position: absolute; z-index: 8; top: calc(100% + 8px); right: 14px; width: min(360px,calc(100vw - 28px)); padding: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 8px 28px #211f1a24; }
+    .share-panel label { display: block; margin-bottom: 8px; font-size: 13px; }
+    .share-panel input { width: 100%; padding: 9px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); }
+    .share-panel-actions { display: flex; gap: 10px; margin-top: 10px; }
+    #shareStatus { margin-bottom: 0; font-size: 12px; color: var(--muted); }
+    @media (max-width: 1100px) and (min-width: 801px) {
+      #appTopbar { grid-template-columns: auto 1fr !important; }
+      #appTopbar .view-tabs { justify-self: end; }
+      #appTopbar .top-actions { grid-column: 1 / -1; }
+    }
+    #appTopbar { display: grid; grid-template-columns: auto auto minmax(0,1fr); align-items: center !important; }
+    #appTopbar .view-tabs { flex-wrap: nowrap; }
+    #appTopbar .top-actions { justify-content: flex-end; align-items: center; min-width: 0; }
+    #appTopbar .account-copy { min-width: 0; }
+    .library-heading { padding: 22px 0 0; }
+    .player select.speed { color-scheme: dark; }
+    .connection a { color: inherit; text-underline-offset: 3px; }
+    .sidebar { bottom: 0 !important; }
+    .discovery-hero { display: block; }
+    .discovery-copy { min-height: 0; padding: 22px 0 34px; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+    .discovery-copy::before { display: none; }
+    .discovery-copy h1 { max-width: none; font-size: clamp(40px,5vw,68px); }
+    .discovery-copy p { margin: 14px 0 0; font-size: 16px; color: var(--muted); }
+    .view-tabs { padding: 0; border: 0; border-radius: 0; background: none; gap: 22px; }
+    .view-tab { padding: 8px 0; border-radius: 0; font-size: 14px; font-weight: 500; white-space: nowrap; flex: 0 0 auto; }
+    .view-tab.active { color: var(--ink); background: transparent; box-shadow: inset 0 -1px var(--ink); }
+    .public-grid { display: block; border-top: 1px solid var(--ink); }
+    .public-card { display: grid; grid-template-columns: 30px minmax(0,1fr) minmax(100px,180px) 18px; align-items: center; gap: 20px; min-height: 104px; padding: 22px 6px; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; cursor: pointer; }
+    .public-card:hover { background: #ebe5da; transform: none; border-color: var(--line); }
+    .public-title { display: block; margin: 0 0 9px; color: var(--ink); font: 500 clamp(20px,2vw,24px)/1.24 "Newsreader",serif; text-decoration: none; }
+    .paper-index, .paper-arrow { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .paper-arrow { font-size: 20px; }
+    .public-status { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+    .uploader-avatar { width: 19px; height: 19px; flex-basis: 19px; color: var(--muted); background: #e4ddcf; font-size: 10px; }
+    .usage-shell { padding: 20px 0; border: 0; border-block: 1px solid var(--line); border-radius: 0; background: none; }
+    .usage-stat { padding: 9px 10px 9px 0; border: 0; border-radius: 0; background: none; }
+    .usage-value { font-family: "Newsreader",serif; font-weight: 500; }
+    .account-copy > span { display: block; }
+    .account-avatar { color: var(--cyan); border-color: var(--line); background: #e9e1d5; }
+    .rr-modal { overflow: auto; padding: max(20px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom)); }
+    .rr-signin { max-height: calc(100dvh - 40px); overflow: auto; }
+    .rr-x { min-width: 38px; min-height: 38px; }
+    #rrGoogleButton { max-width: 100%; overflow: hidden; }
+    .overlay { overflow-y: auto; }
+    #termsOverlay { z-index: 450; }
+    #uploadOverlay { z-index: 430; }
+    .terms-dialog { min-height: 0; max-height: calc(100dvh - 40px); }
+    .terms-copy { min-height: 0; flex: 1; }
+    .terms-copy section { margin: 20px 0 0; }
+    .consent-box { color: var(--ink); border-color: var(--line); background: #f0eadf; }
+    .terms-dialog .dialog-actions, #termsAcceptance { flex-shrink: 0; }
+    .transcript-view { z-index: 390; --ink: #fffaf0; --muted: #c0b7a5; }
+    .transcript-controls { color: #fffaf0; }
+    .transcript-controls .control { color: #ddd3c2; }
+    .transcript-controls .control.main { color: #28251f; background: #fffaf0; }
+    body.reader-open .player { visibility: hidden; }
+    .pdf-reader { grid-template-rows: auto minmax(0,1fr) auto; }
+    .pdf-reader-scroll { padding: 24px 18px 40px; scroll-behavior: auto; overflow-anchor: none; }
+    .pdf-pages { display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0 auto; gap: 28px; }
+    .pdf-page { flex: 0 0 auto; margin: 0 !important; max-width: none; }
+    .pdf-reader-head { padding: max(10px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left)); }
+    .pdf-reader-footer { display: grid; grid-template-columns: minmax(110px,1fr) auto; align-items: center; gap: 12px; min-height: 57px; padding: 8px max(16px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); border-top: 1px solid #bdb5a7; background: #f6f1e8; }
+    .pdf-timeline span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .pdf-reader-footer .secondary { min-height: 34px; padding: 0 11px; font-size: 12px; }
+    .pdf-reader-footer input { min-width: 0; width: 100%; }
+    .pdf-timeline { display: grid; grid-template-columns: auto minmax(35px,1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+    .pdf-playback-settings { display: grid; grid-template-columns: 78px 140px auto; gap: 12px; align-items: end; }
+    .playback-setting { display: grid; gap: 4px; min-width: 0; }
+    .playback-setting label, .setting-caption { color: var(--muted); font-size: 11px; line-height: 14px; }
+    .setting-caption { display: flex; justify-content: space-between; gap: 4px; }
+    .setting-caption output { color: var(--cyan); font-variant-numeric: tabular-nums; }
+    .playback-setting select { width: 100%; min-width: 0; min-height: 34px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 2px; color: var(--ink); background: var(--panel); font: inherit; font-size: 14px; cursor: pointer; }
+    .playback-setting select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    .pdf-zoom { display: flex; border: 1px solid var(--line); }
+    .pdf-zoom button { min-width: 32px; min-height: 32px; border: 0; background: none; color: var(--ink); cursor: pointer; font-size: 13px; }
+    .pdf-marker { width: 25px; height: 25px; touch-action: manipulation; }
+    .pdf-marker::after { content: ""; position: absolute; inset: -3px; }
+    .pdf-marker.active { background: var(--cyan); }
+    .textLayer { --scale-factor: 1; user-select: text; -webkit-user-select: text; }
+    .pdf-reader-note { max-height: 90px; overflow-y: auto; }
+    .pdf-reader-note a { color: inherit; }
+    .pdf-reader-transport button svg { width: 15px; height: 15px; fill: currentColor; vertical-align: middle; }
+    #playbackNotice { z-index: 460 !important; }
+    @media (max-width: 800px) {
+      .top-actions { gap: 9px; }
+      .topbar .eyebrow { display: none; }
+      #appTopbar { grid-template-columns: minmax(0,1fr); gap: 16px; }
+      #appTopbar .top-actions { justify-content: flex-start; }
+      .library-heading { padding-top: 3px; }
+      .view-tabs { width: auto; gap: 22px; }
+      .public-card { grid-template-columns: 22px minmax(0,1fr) 16px; gap: 10px; padding: 19px 2px; }
+      .public-status { grid-column: 2; font-size: 11px; }
+      .public-card-copy { grid-row: 1; grid-column: 2; }
+      .paper-index { grid-row: 1 / 3; align-self: start; margin-top: 4px; }
+      .paper-arrow { grid-column: 3; grid-row: 1 / 3; }
+      .public-title { font-size: 22px; }
+      .discovery-copy { padding: 3px 0 27px; }
+      .pdf-reader-scroll { padding: 12px 4px 30px; }
+      .pdf-reader-footer { grid-template-columns: minmax(0,1fr); gap: 10px; padding-inline: max(10px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-right)); }
+      .pdf-playback-settings { grid-template-columns: minmax(66px,.65fr) minmax(116px,1.2fr) auto; gap: 8px; }
+      .playback-setting select { font-size: 16px; }
+      .pdf-zoom button { min-width: 29px; }
+      .pdf-reader-head { min-height: 58px; }
+      .pdf-reader-transport { gap: 7px; }
+      .pdf-reader-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .pdf-marker { width: 23px; height: 23px; }
+      .pdf-marker::after { inset: -4px; }
+      .usage-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+    @media (orientation: landscape) and (max-height: 500px) {
+      .pdf-reader-head { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+      .pdf-reader-meta, .pdf-reader-state { display: none; }
+      .pdf-reader-title h2 { font-size: 16px; }
+      .pdf-reader-transport button, .pdf-reader-back { width: 34px; height: 34px; min-height: 34px; }
+      .pdf-reader-back { font-size: 0; padding: 0; }
+      .pdf-reader-back::before { content: "←"; font-size: 18px; }
+      .pdf-reader-footer { grid-template-columns: minmax(95px,1fr) auto; min-height: 42px; padding-top: 4px; padding-bottom: 4px; }
+      .pdf-playback-settings { grid-template-columns: 72px 124px auto; gap: 8px; }
+      .playback-setting > label, .setting-caption { display: none; }
+      .playback-setting select { min-height: 30px; font-size: 14px; }
+      .pdf-reader-footer .secondary, .pdf-zoom button { min-height: 30px; }
+      .pdf-reader-scroll { padding-top: 8px; }
+    }
+    .url-import-banner { margin: 20px 0 28px; padding: 18px 20px; border: 1px solid var(--line,#d9d5cd); border-radius: 12px; background: var(--surface,#f8f6f1); }
+    .url-import-banner h2 { margin: 0 0 10px; font-size: 24px; }
+    .url-import-source { overflow-wrap: anywhere; color: var(--muted); font-size: 13px; }
+    .url-import-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+</style>
+  <script type="module">
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+    window.pdf2PodcastPDFJS = pdfjsLib;
+    window.dispatchEvent(new Event("pdf2podcast-pdfjs-ready"));
+  </script>
+  <style id="paper-privacy-styles">
+    .plan-badge { display: inline-flex; align-items: center; padding: 3px 7px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    .plan-badge[data-plan="pro"] { color: var(--cyan); border-color: var(--cyan); }
+    #discoverUploadButton { gap: 9px; min-height: 42px; padding-inline: 16px; white-space: nowrap; }
+    #discoverUploadButton svg { width: 17px; height: 17px; flex-shrink: 0; }
+    .upload-file { padding: 16px; border: 1px dashed var(--line); background: var(--bg); }
+    .upload-file input[type=file] { height: auto; padding: 0; border: 0; background: transparent !important; font-size: 12px; }
+    .upload-file input::file-selector-button { margin-right: 12px; padding: 11px 14px; border: 1px solid var(--ink); border-radius: 2px; color: var(--panel); background: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+    .upload-file input:disabled::file-selector-button { opacity: .5; cursor: default; }
+    .upload-file input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 5px; }
+    .compact-heading, .track-title-row, .pdf-reader-title-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+    .compact-heading h2 { margin: 0; min-width: 0; }
+    .track-title-row .track-title, .pdf-reader-title-line h2 { flex: 1; min-width: 0; }
+    .track .track-copy { width: 100%; }
+    .visibility-switch { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; gap: 7px; min-height: 32px; margin: 0; color: var(--muted); font-size: 11px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+    .visibility-label { min-width: 38px; text-align: right; }
+    .visibility-switch input[type=checkbox] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .switch-track { position: relative; display: inline-block; width: 32px; height: 18px; flex-shrink: 0; border: 1px solid #a39c90; border-radius: 999px; background: #c4bfb5; transition: background .15s ease, border-color .15s ease; }
+    .switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0002; transition: transform .15s ease; }
+    .visibility-switch input:checked + .switch-track { background: var(--cyan); border-color: var(--cyan); }
+    .visibility-switch input:checked + .switch-track::after { transform: translateX(14px); }
+    .visibility-switch input:focus-visible + .switch-track { outline: 2px solid var(--cyan); outline-offset: 3px; }
+    .visibility-switch input:disabled { cursor: not-allowed; }
+    .visibility-switch input:disabled + .switch-track { opacity: .5; }
+    .job-privacy { display: inline-flex; flex: 0 0 auto; align-items: center; }
+    #pdfReaderVisibility { flex-shrink: 0; }
+    #pdfPrivacyStatus { grid-column: 1 / -1; margin: 0; min-height: 0; }
+    #pdfPrivacyStatus:empty, #libraryPrivacyMessage:empty, #urlImportStatus:empty { display: none; }
+    .publication-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    @media (prefers-reduced-motion: reduce) { .switch-track, .switch-track::after { transition: none; } }
+  </style>
+  <style id="paper-volume-styles">
+    .volume-control { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; min-width: 0; color: var(--muted); font-size: 11px; }
+    .volume-control label { cursor: pointer; }
+    .volume-control output { font-variant-numeric: tabular-nums; }
+    .volume-control input[type=range] { grid-column: 1 / -1; width: 100%; min-width: 0; height: 34px; margin: 0; cursor: pointer; accent-color: var(--cyan); }
+    .volume-control input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    .player-right { align-items: center; flex-wrap: wrap; }
+    .player-right .volume-control { width: 110px; flex: 0 1 110px; }
+    .player-right .volume-control input { height: 24px; }
+    .pdf-playback-settings { grid-template-columns: 78px 140px minmax(100px,130px) auto; }
+    @media (max-width: 800px) {
+      .pdf-playback-settings { grid-template-columns: minmax(66px,.65fr) minmax(116px,1.2fr) auto; }
+      .pdf-playback-settings .volume-control { grid-column: 1 / -1; grid-template-columns: auto minmax(80px,1fr) 36px; align-items: center; gap: 10px; }
+      .pdf-playback-settings .volume-control input { grid-column: 2; grid-row: 1; height: 28px; }
+      .pdf-playback-settings .volume-control output { grid-column: 3; grid-row: 1; text-align: right; }
+      .pdf-playback-settings .pdf-zoom { grid-column: 3; grid-row: 1; }
+    }
+  </style>
 </head>
 <body>
   <div class="shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 18V7l7-3v11.5M11 15.5V5.8L20 3v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="7.5" cy="18" r="3.5" fill="currentColor"/><circle cx="16.5" cy="14" r="3.5" fill="currentColor"/></svg></span>Pdf2Podcast</div>
-      <nav class="side-nav">
-        <a class="nav-item active" href="#" style="text-decoration:none"><span class="nav-dot"></span>Your library</a>
-        <div class="nav-item">Shared conversions</div>
-        <div class="nav-item">Transcript player</div>
-      </nav>
-      <div class="connection"><span></span><b id="connectionLabel">Connecting</b><br>Shared server library</div>
-    </aside>
-
     <main>
-      <div id="libraryView">
-      <header class="topbar">
-        <div><p class="eyebrow">Listen to what you read</p><h1>Your library</h1></div>
-        <div class="top-actions">
-          <button class="secondary" id="settingsButton">Connection</button>
-          <button class="primary" id="uploadButton">+ Add PDF</button>
-        </div>
+      <header class="topbar" id="appTopbar">
+        <a class="brand" id="homeLink" href="/" aria-label="Pdf2Podcast home, Discover"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 18V7l7-3v11.5M11 15.5V5.8L20 3v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="7.5" cy="18" r="3.5" fill="currentColor"/><circle cx="16.5" cy="14" r="3.5" fill="currentColor"/></svg></span>Pdf2Podcast</a>
+        <nav class="view-tabs" aria-label="Library view"><button class="view-tab active" data-view="discover">Discover</button><button class="view-tab" data-view="library">My library</button></nav>
+        <div class="top-actions" id="discoveryTopActions"><button class="primary" id="discoverUploadButton"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m-4 4 4-4 4 4M4 15v6h16v-6"/></svg>Upload PDF</button><button class="secondary" id="headerSignInButton">Sign in</button></div>
       </header>
+      <section id="urlImportBanner" class="url-import-banner" aria-label="PDF link import" hidden>
+        <div class="compact-heading"><h2>Import a paper</h2><label class="visibility-switch" title="Private papers require Pro"><span id="importVisibilityLabel" class="visibility-label">Public</span><input id="importVisibility" type="checkbox" role="switch" aria-label="Make paper public" checked disabled><span class="switch-track" aria-hidden="true"></span></label></div>
+        <p id="urlImportSource" class="url-import-source"></p>
+        <p class="publication-note">Only import PDFs you have permission to process. Public papers and audio can be downloaded by anyone.</p>
+        <p id="urlImportStatus" class="message" role="status" aria-live="polite"></p>
+        <div class="url-import-actions"><button id="urlImportAction" class="secondary" type="button">Import PDF</button><button id="urlImportCancel" class="secondary" type="button">Cancel</button></div>
+      </section>
+      <div id="discoverView">
+        <div class="discovery-hero">
+          <article class="discovery-copy"><h1>The paper library.</h1><p>Read and listen, paragraph by paragraph.</p></article>
+          <aside class="discovery-card" id="signinPanel"></aside>
+        </div>
+        <section>
+          <div class="section-head"><div><h3>Shared papers</h3><p class="catalogue-order" id="catalogueOrder">Hours listened: high to low</p></div><div class="catalogue-controls"><label for="discoverSort">Sort</label><select id="discoverSort"><option value="listening">Hours listened: high to low</option><option value="least_listened">Hours listened: low to high</option><option value="recent">Newest first</option><option value="oldest">Oldest first</option></select><span class="section-note" id="publicCount">Loading</span></div></div>
+          <div class="public-grid" id="publicCatalogue"><div class="empty">Loading public papers…</div></div>
+        </section>
+      </div>
+      <div id="libraryView" hidden>
+      <header class="library-heading" id="libraryTopbar"><h1>My library</h1></header>
 
       <section id="processingSection" hidden>
         <div class="section-head"><h3>Being made</h3><span class="section-note">Updates automatically</span></div>
@@ -351,7 +1029,8 @@
 
       <section>
         <div class="section-head"><h3>All conversions</h3><span class="section-note" id="libraryCount">Loading</span></div>
-        <div class="library" id="library"><div class="empty">Loading the shared library…</div></div>
+        <div class="message" id="libraryPrivacyMessage" role="status" aria-live="polite"></div>
+        <div class="library" id="library"><div class="empty">Loading your library...</div></div>
       </section>
       </div>
       <div id="detailView" hidden>
@@ -361,7 +1040,7 @@
             <div class="label" id="detailLabel">Podcast</div>
             <h2 id="heroTitle" tabindex="-1"></h2>
             <div class="meta" id="heroMeta"></div>
-            <div class="hero-actions" id="detailActions"><button class="play-big" id="heroPlay" aria-label="Play">▶</button><button class="secondary" id="heroTranscript">Read along</button></div>
+            <div class="hero-actions" id="detailActions"><button class="play-big" id="heroPlay" aria-label="Play">▶</button></div>
             <div class="message" id="detailMessage" role="status"></div>
           </div>
         </article>
@@ -378,34 +1057,21 @@
           <div class="chapters" id="chapters"></div>
         </section>
       </div>
+      <footer class="site-footer"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></footer>
     </main>
   </div>
 
   <div id="playbackNotice" role="status" aria-live="polite" hidden style="position:fixed;z-index:110;top:16px;left:16px;right:16px;padding:16px;border:1px solid var(--danger);border-radius:12px;background:var(--panel);color:var(--ink)"></div>
-  <div class="player" id="player" tabindex="0" role="group" aria-label="Now playing. Open transcript">
-    <div class="now" id="openTranscript">
+  <div class="player" id="player" tabindex="0" role="group" aria-label="Now playing. Open PDF reader">
+    <div class="now">
       <div class="cover small"></div>
-      <div class="now-copy"><div class="now-title" id="nowTitle">Nothing playing</div><div class="now-sub" id="playbackStatus" aria-live="polite">Tap for transcript</div></div>
+      <div class="now-copy"><div class="now-title" id="nowTitle">Nothing playing</div><div class="now-sub" id="playbackStatus" aria-live="polite">Open PDF reader</div></div>
     </div>
     <div class="transport">
       <div class="controls"><button class="control" data-skip="-15">−15</button><button class="control main" id="playPause">▶</button><button class="control" data-skip="15">+15</button></div>
       <div class="timeline"><span id="elapsed">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"><span id="duration">0:00</span></div>
     </div>
-    <div class="player-right"><button class="speed" id="speed">1×</button><button class="secondary" id="download">Download</button></div>
-  </div>
-
-  <div class="transcript-view" id="transcriptView">
-    <div class="transcript-top"><div class="brand">Pdf2Podcast <span style="color:var(--muted);font-weight:500">/ read along</span></div><div class="transcript-top-actions"><button class="secondary" id="transcriptPaper">Paper text</button><button class="close" id="closeTranscript" aria-label="Close transcript">×</button></div></div>
-    <div class="transcript-scroll" id="transcriptScroll" tabindex="0" aria-label="Transcript. Select a line to seek."><div class="transcript-loading">Choose a completed conversion to read along.</div></div>
-    <div class="transcript-controls" id="transcriptControls">
-      <button class="primary recenter" id="recenterTranscript" hidden>↓ Recenter</button>
-      <div class="transcript-tools">
-        <div class="text-size" role="group" aria-label="Transcript text size"><button class="speed" id="smallerText" aria-label="Smaller transcript text">A−</button><button class="speed" id="largerText" aria-label="Larger transcript text">A+</button></div>
-        <label class="sleep-timer">Sleep <select id="sleepTimer" aria-label="Sleep timer"><option value="off">Off</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="end">End of podcast</option></select><output id="sleepRemaining" aria-live="off"></output></label>
-      </div>
-      <div class="controls"><button class="control" data-skip="-15">−15</button><button class="control main" id="fullPlayPause">▶</button><button class="control" data-skip="15">+15</button><button class="speed" id="fullSpeed">1×</button></div>
-      <div class="timeline"><span id="fullElapsed">0:00</span><input id="fullSeek" type="range" min="0" max="1000" value="0" aria-label="Seek audio"><span id="fullDuration">0:00</span></div>
-    </div>
+    <div class="player-right"><div class="volume-control"><label for="playerVolume">Volume</label><output for="playerVolume" data-volume-output aria-live="off">100%</output><input id="playerVolume" data-paper-volume type="range" min="0" max="100" step="1" value="100" aria-label="Paper audio volume"></div><select class="speed" id="speed" aria-label="Playback speed"><option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select><button class="secondary" id="download">Download</button></div>
   </div>
 
   <div class="overlay" id="settingsOverlay">
@@ -418,10 +1084,27 @@
   </div>
 
   <div class="overlay" id="uploadOverlay">
-    <div class="dialog"><h2>Add to your library</h2><p>New uploads keep the paper's chapter headings, with a topic title for each paragraph, near-verbatim male narration, and a separate female AI summary. Follow progress in your library.</p><p>Existing recordings keep their original audio and remain playable.</p>
-      <div class="field"><label>PDF FILE</label><input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
-      <div class="message" id="uploadMessage"></div>
-      <div class="dialog-actions"><button class="secondary" data-close="uploadOverlay">Cancel</button><button class="primary" id="submitUpload">Upload PDF</button></div>
+    <div class="dialog">
+      <div class="compact-heading"><h2>Add a paper</h2><label class="visibility-switch" title="Private papers require Pro"><span id="uploadVisibilityLabel" class="visibility-label">Public</span><input id="uploadVisibility" type="checkbox" role="switch" aria-label="Make paper public" checked disabled><span class="switch-track" aria-hidden="true"></span></label></div>
+      <div class="field upload-file"><label for="pdfFile">CHOOSE A PDF</label><input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
+      <p class="publication-note">Only upload PDFs you have permission to process. Public papers and audio can be downloaded by anyone.</p>
+      <div class="upload-transfer" id="uploadProgress" hidden>
+        <div class="upload-transfer-line"><strong id="uploadPercent">0%</strong><span id="uploadBytes"></span></div>
+        <progress id="uploadProgressBar" max="100" value="0" aria-label="PDF upload progress"></progress>
+      </div>
+      <div class="message" id="uploadMessage" role="status" aria-live="polite"></div>
+      <div class="dialog-actions"><button class="secondary" id="closeUpload" data-close="uploadOverlay">Cancel</button><button class="primary" id="submitUpload">Upload PDF</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="termsOverlay" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+    <div class="dialog terms-dialog">
+      <div class="terms-copy"><div class="terms-meta" id="termsMeta">Terms of Use</div><h2 id="termsTitle">Terms of Use</h2><div id="termsSections"><p>Loading terms…</p></div></div>
+      <div id="termsAcceptance" hidden>
+        <label class="consent-box"><input id="termsConsent" type="checkbox"><span>I understand that Free uploads are public and Pro can choose private. I have permission to upload and process each PDF. For public uploads, I also have permission to distribute the PDF, generated audio, transcript and metadata. Private papers are accessible to me and the service operator, not end-to-end encrypted. I will not upload infringing, unlawful or otherwise unauthorized material. Changing visibility cannot revoke other people's public copies or already downloaded copies.</span></label>
+        <div class="message" id="termsMessage" role="status"></div>
+      </div>
+      <div class="dialog-actions"><button class="secondary" id="termsClose">Close</button><button class="primary" id="acceptTerms" hidden disabled>Accept and create account</button></div>
     </div>
   </div>
 
@@ -430,16 +1113,16 @@
     const DEFAULT_API = "http://127.0.0.1:8766";
     const state = {
       jobs: [], jobsLoaded: false, selected: null, detailJobID: null, chapterJob: null, chapterManifest: null,
-      transcript: [], transcriptJob: null, manifest: null, experiences: new Map(),
-      chapterParagraphs: [], playbackParagraphs: [],
+      experiences: new Map(), chapterParagraphs: [],
       audioURL: null, playingJobID: null, playRequest: 0, speedIndex: 1, buffering: false,
-      followingTranscript: true, activeLine: -1, pendingSeek: null, libraryScroll: 0,
-      textSize: Math.max(24, Math.min(64, Number(localStorage.getItem("pdf2podcast_text_size")) || 40)),
-      sleepDeadline: null, sleepAtEnd: false, sleepTimeout: null
+      pendingSeek: null, libraryScroll: 0,
+      sleepDeadline: null, sleepAtEnd: false, sleepTimeout: null,
+      publicJobs: [], personalJobs: [], currentView: "discover", publicTerms: null, discoverSort: "listening", catalogueRequest: 0,
+      personalRequest: 0, privacyRevision: 0, jobDetails: new Map(), visibilityVersions: new Map(), visibilityPending: new Set()
     };
     const speeds = [.85, 1, 1.25, 1.5, 1.75, 2];
     const $ = id => document.getElementById(id);
-    const apiBase = () => (localStorage.getItem("pdf2podcast_api_url") || DEFAULT_API).replace(/\/$/, "");
+    const apiBase = () => location.origin;
     const token = () => localStorage.getItem("pdf2podcast_mobile_token") || "";
     const auth = () => ({ Authorization: "Bearer " + token() });
     const colorFor = id => {
@@ -448,7 +1131,7 @@
       return hues[Math.abs(n) % hues.length];
     };
     const tint = (el, id) => { const c = colorFor(id); el.style.setProperty("--cover-a", "rgb("+c.join(",")+")"); el.style.setProperty("--cover-b", "rgb("+c.map(x=>Math.round(x*.28)).join(",")+")"); };
-    const title = job => job.filename || job.title || job.job_id || "Untitled PDF";
+    const title = job => job.title || job.filename || job.job_id || "Untitled PDF";
     const status = job => (job.status || "unknown").toLowerCase();
     const complete = job => status(job) === "complete" || status(job) === "completed";
     const active = job => ["queued","processing","running"].includes(status(job));
@@ -472,16 +1155,244 @@
       if (job.audio_bytes) parts.push((job.audio_bytes/1048576).toFixed(0)+" MB");
       return parts.join(" · ") || (job.stage || status(job));
     };
+    function diagnosticText(value) {
+      return String(value ?? "").slice(0,5000)
+        .replace(/https?:\/\/[^\s"'<>]+/g, value => { try { const url=new URL(value); return url.origin+url.pathname; } catch (_) { return "[link]"; } })
+        .replace(/Bearer\s+[^\s"',;]+/gi,"Bearer [redacted]")
+        .replace(/((?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|secret|credential|authorization)\s*[=:]\s*)[^\s,;]+/gi,"$1[redacted]")
+        .replace(/\b(?:clsk_|GOCSPX-|sk-)[A-Za-z0-9_-]+/g,"[redacted]");
+    }
+    function diagnosticReport(message, context = {}) {
+      const error=context.error || {}, job=context.job || {}, audio=$("audio");
+      const report={
+        app:"Pdf2Podcast Web", client_version:"2026-10-26-engagement", time:new Date().toISOString(), action:context.action || "website",
+        page:location.origin+location.pathname+(location.hash.startsWith("#read/")?location.hash:""),
+        message:diagnosticText(message), error:diagnosticText(error.message || job.error || ""),
+        error_name:error.name || undefined, code:error.code || job.error_code || undefined,
+        http_status:error.httpStatus || error.status || undefined,
+        request: error.requestPath ? diagnosticText(new URL(error.requestPath,location.origin).pathname) : undefined,
+        request_id:error.requestId || undefined, cloudflare_ray:error.cfRay || undefined,
+        job_id:job.job_id || error.jobId || undefined, filename:job.filename || context.filename || undefined,
+        title:job.title || undefined, status:job.status || undefined, stage:job.stage || undefined,
+        job_updated_at:job.updated_at || undefined, pdf_page:context.page || undefined,
+        file_bytes:context.fileBytes || undefined,
+        playback:context.action === "play_audio" ? {seconds:audio.currentTime,ready_state:audio.readyState,network_state:audio.networkState,media_error:audio.error?.code || undefined} : undefined,
+        browser:navigator.userAgent
+      };
+      return "Pdf2Podcast error report\n"+JSON.stringify(report,(key,value)=>typeof value === "string" ? diagnosticText(value) : value,2);
+    }
+    async function copyText(text, parent=document.body) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+      const field=document.createElement("textarea"), previous=document.activeElement;
+      field.value=text; field.readOnly=true; field.style.cssText="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+      parent.appendChild(field); field.focus({preventScroll:true}); field.select();
+      let copied=false;
+      try { copied=document.execCommand("copy"); } catch (_) {}
+      field.remove(); previous?.focus?.({preventScroll:true}); return copied;
+    }
+    function appendCopyError(container,message,context={}) {
+      const report=diagnosticReport(message,context),button=document.createElement("button");
+      button.type="button"; button.className="secondary copy-error"; button.textContent="Copy error";
+      button.onclick=async event=>{
+        event.stopPropagation(); button.disabled=true;
+        const copied=await copyText(report,container);
+        button.disabled=false; button.textContent=copied?"Copied":"Select error details";
+        if(!copied){
+          let field=container.querySelector(".error-copy-fallback");
+          if(!field){field=document.createElement("textarea");field.readOnly=true;field.className="error-copy-fallback";field.setAttribute("aria-label","Error details to copy");field.value=report;container.appendChild(field);}
+          field.onclick=event=>event.stopPropagation();field.focus();field.select();
+        }
+      };
+      container.appendChild(button);
+    }
+    function showError(container,message,context={}) {
+      const text=document.createElement("span");text.className="error-message";text.textContent=message;
+      container.replaceChildren(text);container.hidden=false;appendCopyError(container,message,context);
+    }
+    async function responseError(response,path) {
+      const error=new Error(await responseMessage(response,"Request failed (HTTP "+response.status+")"));
+      let body={};try{body=await response.clone().json();}catch(_){}
+      error.httpStatus=response.status;error.requestPath=path;
+      error.code=body.code || body.error_code || body.detail?.code || body.error?.code;
+      error.jobId=body.job_id;error.requestId=response.headers.get("X-Request-ID") || body.request_id;
+      error.cfRay=response.headers.get("CF-Ray");return error;
+    }
     async function request(path, options = {}) {
-      const response = await fetch(apiBase()+path, { ...options, headers: { ...auth(), ...(options.headers || {}) } });
-      if (!response.ok) {
-        let message = response.status+" "+response.statusText;
-        try { const body = await response.json(); message = body.detail || body.error || body.message || JSON.stringify(body); } catch (_) { try { message = await response.text() || message; } catch (_) {} }
-        throw new Error(message);
+      let response;
+      try { response = await fetch(apiBase()+path, { ...options, credentials: "same-origin" }); }
+      catch(error) { error.requestPath=path; throw error; }
+      if (response.status === 429) {
+        const seconds = response.headers.get("Retry-After");
+        webSession.retryGuidance = seconds ? "Try again in "+seconds+" seconds." : "Try again in a minute.";
       }
+      if (!response.ok) throw await responseError(response,path);
       return response;
     }
+    function requestPDFUpload(file, visibility, onProgress, onTransferred) {
+      const path = "/api/audio/upload";
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const fail = (message, code) => reject(Object.assign(new Error(message), {code, requestPath:path}));
+        xhr.upload.onprogress = onProgress;
+        xhr.upload.onload = onTransferred;
+        xhr.onload = async () => {
+          try {
+            const headers = new Headers();
+            ["Content-Type", "Retry-After", "X-Request-ID", "CF-Ray"].forEach(name => {
+              const value = xhr.getResponseHeader(name);
+              if (value) headers.set(name, value);
+            });
+            const response = new Response([204,205,304].includes(xhr.status) ? null : xhr.responseText, {status:xhr.status, headers});
+            if (response.status === 429) {
+              const seconds = headers.get("Retry-After");
+              webSession.retryGuidance = seconds ? "Try again in "+seconds+" seconds." : "Try again in a minute.";
+            }
+            if (!response.ok) throw await responseError(response, path);
+            resolve(response);
+          } catch (error) { error.requestPath = path; reject(error); }
+        };
+        xhr.onerror = () => fail("The upload connection was lost. Check your library before retrying in case the server received it.", "upload_network_error");
+        xhr.ontimeout = () => fail("The upload timed out. Check your library before retrying.", "upload_timeout");
+        xhr.onabort = () => fail("The upload was interrupted.", "upload_aborted");
+        // Same-origin session cookies are included automatically. Let the browser set the multipart boundary.
+        xhr.open("POST", apiBase()+path);
+        xhr.setRequestHeader("X-Pdf2Podcast-Visibility", visibility);
+        xhr.timeout = 30*60*1000;
+        const form = new FormData(); form.append("pdf", file, file.name);
+        xhr.send(form);
+      });
+    }
     const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    // Capabilities come from the authenticated account and entry, never an email or a shared conversion.
+    function isProPlan() { return webSession.user?.plan === "pro"; }
+    function canUploadPrivate() { return isProPlan() && webSession.user?.can_upload_private === true; }
+    function canChangeVisibility(job) { return isProPlan() && job?.is_owner === true && job.can_change_visibility === true; }
+    function visibilityVersion(id) { return state.visibilityVersions.get(id) || 0; }
+    function currentJob(id) {
+      return state.jobDetails.get(id) || state.personalJobs.find(job => job.job_id === id) || state.publicJobs.find(job => job.job_id === id);
+    }
+    function rememberJob(job) {
+      if (!job?.job_id) return;
+      state.jobDetails.set(job.job_id, job);
+      const index = state.personalJobs.findIndex(item => item.job_id === job.job_id);
+      if (webSession.user && job.is_owner === true) {
+        if (index < 0) state.personalJobs.unshift(job);
+        else state.personalJobs[index] = job;
+      } else if (index >= 0) state.personalJobs.splice(index, 1);
+      if (state.selected?.job_id === job.job_id) state.selected = job;
+    }
+    function invalidateVisibilityReads(id) {
+      state.visibilityVersions.set(id, visibilityVersion(id)+1);
+      state.privacyRevision++; state.catalogueRequest++; state.personalRequest++;
+    }
+    function syncVisibilityPickers(reset = false) {
+      const allowed = canUploadPrivate(), account = [webSession.user?.email || "", webSession.user?.plan || "", allowed].join("|");
+      ["upload","import"].forEach(kind => {
+        const control = $(kind+"Visibility");
+        if (!control) return;
+        const busy = kind === "upload" ? uploadInProgress : urlImport.running;
+        if (reset || control.dataset.account !== account) control.checked = !allowed;
+        control.dataset.account = account;
+        if (!allowed) control.checked = true;
+        control.disabled = busy || !allowed;
+        $(kind+"VisibilityLabel").textContent = control.checked ? "Public" : "Private";
+        control.closest("label").title = !allowed ? "Private papers require Pro"
+          : control.checked ? "Anyone can read and download this paper" : "Only you and the service operator can access this paper";
+      });
+      if (!uploadInProgress) $("submitUpload").textContent = "Upload PDF";
+    }
+    function jobVisibilityControl(job) {
+      if (!webSession.user || job.is_owner !== true) return "";
+      const allowed = canChangeVisibility(job), busy = state.visibilityPending.has(job.job_id);
+      const description = busy ? "Saving..." : !isProPlan() ? "Private papers require Pro" : !allowed ? "Visibility cannot be changed" : "Make paper public";
+      return '<div class="job-privacy"><label class="visibility-switch" title="'+escapeHTML(description)+'">'+
+        '<span class="visibility-label">'+(job.visibility === "public" ? "Public" : "Private")+'</span>'+
+        '<input type="checkbox" role="switch" data-job-visibility="'+escapeHTML(job.job_id)+'" aria-label="Make '+escapeHTML(title(job))+' public" aria-busy="'+busy+'"'+
+        (job.visibility === "public" ? ' checked' : '')+(!allowed || busy ? ' disabled' : '')+'><span class="switch-track" aria-hidden="true"></span></label></div>';
+    }
+    function visibilityMessage(job, message, error = null) {
+      const targets = [$("libraryPrivacyMessage")];
+      if ($("pdfReader")?.dataset.job === job.job_id) targets.push($("pdfPrivacyStatus"));
+      targets.filter(Boolean).forEach(target => {
+        if (error) showError(target, message, {error,job,action:"change_visibility"});
+        else target.textContent = message;
+      });
+    }
+    function refreshVisibilityMedia(job) {
+      state.experiences.delete(job.job_id);
+      if (state.chapterJob === job.job_id) {
+        state.chapterJob = null; state.chapterManifest = null; state.chapterParagraphs = [];
+      }
+      if (state.playingJobID !== job.job_id) return;
+      const audio = $("audio"), position = state.pendingSeek ?? audio.currentTime;
+      const resume = !audio.paused && !audio.ended;
+      flushListening(); state.playRequest++;
+      audio.pause(); audio.onloadedmetadata = null;
+      audio.removeAttribute("src"); audio.load();
+      state.audioURL = null; state.pendingSeek = null; state.buffering = false; state.selected = job;
+      try {
+        if (job.playback_url) {
+          const url = new URL(job.playback_url, apiBase()+"/");
+          if (url.origin !== location.origin) throw new Error("The audio link does not match your server.");
+          state.audioURL = url.href; audio.src = url.href; audio.playbackRate = speeds[state.speedIndex];
+          seekTo(position);
+          if (resume) startPlayback();
+        }
+      } catch (error) { playbackFailed(error); }
+      syncPlayButtons();
+    }
+    async function changeJobVisibility(select) {
+      const id = select.dataset.jobVisibility, job = currentJob(id), visibility = select.checked ? "public" : "private";
+      if (!job || !canChangeVisibility(job) || state.visibilityPending.has(id) || !["public","private"].includes(visibility)) {
+        if (job) select.checked = job.visibility === "public";
+        return;
+      }
+      if (visibility === job.visibility) return;
+      if (visibility === "public" && !window.confirm("Publish this paper? Anyone will be able to read, listen to, share and download the PDF and generated content. Confirm you have permission to distribute them. Making your entry private later cannot revoke other people's public copies or already downloaded copies.")) {
+        select.checked = job.visibility === "public"; return;
+      }
+      const generation = webSession.sessionGeneration;
+      const scope = select.closest("#pdfReader") ? $("pdfReaderVisibility") : $("library");
+      state.visibilityPending.add(id); invalidateVisibilityReads(id);
+      visibilityMessage(job, "");
+      if (state.currentView === "library") render();
+      window.syncPdf2PodcastPrivacy?.();
+      try {
+        const payload = await webRequest("/api/web/jobs/"+encodeURIComponent(id)+"/visibility", {
+          method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({visibility})
+        });
+        if (generation !== webSession.sessionGeneration || !webSession.user) return;
+        const fresh = payload?.job;
+        if (!fresh || fresh.job_id !== id || !["public","private"].includes(fresh.visibility)) throw new Error("The server returned an incomplete entry. Refresh your library to check its visibility.");
+        invalidateVisibilityReads(id);
+        // Discard the old public representation and all entry-specific media/share state.
+        state.publicJobs = state.publicJobs.filter(item => item.job_id !== id);
+        rememberJob(fresh);
+        state.jobs = state.currentView === "library" ? state.personalJobs : state.publicJobs;
+        if (webSession.sharing) {
+          webSession.sharing = {...webSession.sharing,links:(webSession.sharing.links || []).filter(link => link.job_id !== id)};
+          renderSharingStats();
+        }
+        refreshVisibilityMedia(fresh);
+        renderPublicCatalogue();
+        if (state.currentView === "library") render();
+        window.applyPdf2PodcastVisibility?.(fresh);
+        await Promise.allSettled([loadPersonalJobs(true), loadPublicJobs(true), refreshWebAccount(true)]);
+        if (generation === webSession.sessionGeneration) visibilityMessage(fresh, "");
+      } catch (error) {
+        if (generation === webSession.sessionGeneration) visibilityMessage(job, "Could not update visibility: "+error.message, error);
+      } finally {
+        state.visibilityPending.delete(id);
+        if (generation === webSession.sessionGeneration) {
+          if (state.currentView === "library") render();
+          window.syncPdf2PodcastPrivacy?.();
+          [...scope.querySelectorAll("[data-job-visibility]")].find(node => node.dataset.jobVisibility === id)?.focus({preventScroll:true});
+        }
+      }
+    }
+    document.addEventListener("change", event => {
+      if (event.target.matches("[data-job-visibility]")) changeJobVisibility(event.target);
+    });
     const detailJob = () => state.jobs.find(job => job.job_id === state.detailJobID);
     const playingJob = () => state.jobs.find(job => job.job_id === state.playingJobID) || state.selected;
     const textValue = value => typeof value === "string" ? value : "";
@@ -555,49 +1466,135 @@
       $("processing").innerHTML = inProgress.map(job => `
         <article class="process-card"><div class="process-top"><div style="min-width:0"><div class="process-title">${escapeHTML(title(job))}</div><div class="track-sub">${escapeHTML(job.stage || status(job))}</div></div><span class="percent">${Math.round(pct(job))}%</span></div>
         <div class="progress"><i style="width:${pct(job)}%"></i></div><div class="process-meta"><span>${job.completed_chunks || 0} / ${job.total_chunks || "?"} audio parts</span><span>${eta(job)}</span></div></article>`).join("");
-      $("libraryCount").textContent = state.jobs.length+" shared item"+(state.jobs.length===1?"":"s");
+      $("libraryCount").textContent = state.jobs.length+" paper"+(state.jobs.length===1?"":"s");
       // Leave unchanged rows in place so polling does not interrupt keyboard focus.
-      const libraryKey = JSON.stringify(state.jobs.map(job => [job.job_id, title(job), status(job), job.stage, job.error, pct(job), job.chapter_count, job.page_count]));
+      const libraryKey = JSON.stringify([webSession.user?.plan, state.jobs.map(job => [job.job_id, title(job), status(job), job.stage, job.error, pct(job), job.chapter_count, job.page_count, job.visibility, job.is_owner, job.can_change_visibility, state.visibilityPending.has(job.job_id)])]);
       if (state.libraryKey !== libraryKey) {
         state.libraryKey = libraryKey;
         $("library").innerHTML = state.jobs.length ? state.jobs.map((job, i) => {
           const s = status(job);
-          const right = complete(job)
-            ? '<button class="track-play" aria-label="Play '+escapeHTML(title(job))+'">▶</button>'
-            : '<span class="track-num">'+(failed(job) ? "!" : Math.round(pct(job))+"%")+'</span>';
-          return `<article class="track" data-job="${escapeHTML(job.job_id)}"><div class="track-num" data-number="${i+1}">${i+1}</div><button class="track-open"><div class="cover small" aria-hidden="true"></div><div class="track-copy"><div class="track-title">${escapeHTML(title(job))}</div><div class="track-sub status ${escapeHTML(s)}">${escapeHTML(failed(job) ? (job.error || s) : (job.stage || s))}</div></div></button><div class="track-cell">${job.chapter_count || "–"} sections</div><div class="track-cell">${job.page_count || "–"} pages</div>${right}</article>`;
+          const right = jobVisibilityControl(job);
+          return `<article class="track" data-job="${escapeHTML(job.job_id)}" role="link" tabindex="0" aria-label="Open ${escapeHTML(title(job))}"><div class="track-num" data-number="${i+1}">${i+1}</div><div class="track-open"><div class="cover small" aria-hidden="true"></div><div class="track-copy"><div class="track-title-row"><div class="track-title">${escapeHTML(title(job))}</div>${right}</div><div class="track-sub status ${escapeHTML(s)}">${escapeHTML(failed(job) ? (job.error || s) : (job.stage || s))}</div></div></div><div class="track-cell">${job.chapter_count || "–"} sections</div><div class="track-cell">${job.page_count || "–"} pages</div></article>`;
         }).join("") : '<div class="empty">No conversions yet. Add the first PDF.</div>';
         $("library").querySelectorAll(".track").forEach(row => {
+          row.onkeydown = event => { if (event.target === row && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); row.click(); } };
           tint(row.querySelector(".cover"), row.dataset.job);
+          const job=state.jobs.find(item=>item.job_id===row.dataset.job);
+          if (job && failed(job)) appendCopyError(row.querySelector(".track-copy"),job.error || "Audio conversion failed",{job,action:"convert_pdf"});
           row.addEventListener("click", event => {
+            if (event.target.closest(".job-privacy")) return;
             const job = state.jobs.find(item => item.job_id === row.dataset.job);
             if (!job) return;
-            if (event.target.closest(".track-play")) selectAndPlay(job);
-            else openDetail(job);
+            openDetail(job);
           });
         });
       }
       if (state.detailJobID) renderDetail();
       syncPlayButtons();
     }
-    function openDetail(job) {
-      if (!state.detailJobID) state.libraryScroll = window.scrollY;
-      history.pushState({pdf2podcastDetail:true}, "", "#podcast/"+encodeURIComponent(job.job_id));
-      route();
+    function listeningLabel(value) {
+      const hours=Math.max(0,Number(value)||0)/3600;
+      if(!hours)return "0 hours listened";
+      if(hours<.01)return "Under 0.01 hours listened";
+      return hours.toLocaleString(undefined,{maximumFractionDigits:2})+(hours===1?" hour listened":" hours listened");
     }
-    function route() {
-      try { state.detailJobID = location.hash.startsWith("#podcast/") ? decodeURIComponent(location.hash.slice(9)) : null; }
-      catch (_) { state.detailJobID = null; }
-      $("libraryView").hidden = !!state.detailJobID;
-      $("detailView").hidden = !state.detailJobID;
-      if (state.detailJobID) {
-        renderDetail();
-        window.scrollTo(0, 0);
-        $("heroTitle").focus({preventScroll:true});
-      } else {
-        document.title = "Pdf2Podcast";
-        window.scrollTo(0, state.libraryScroll);
+    function renderPublicCatalogue() {
+      const recency=job=>Number(job.added_at)||Date.parse(job.created_at)/1000||Number(job.published_at)||0;
+      const byDate=["recent","oldest"].includes(state.discoverSort);
+      const direction=["least_listened","oldest"].includes(state.discoverSort)?1:-1;
+      const jobs = state.publicJobs.filter(job => job.visibility === "public").sort((a,b)=>direction*((byDate?0:(Number(a.listening_seconds)||0)-(Number(b.listening_seconds)||0)) || recency(a)-recency(b) || String(a.job_id).localeCompare(String(b.job_id))));
+      const labels={listening:"Hours listened: high to low",least_listened:"Hours listened: low to high",recent:"Newest papers first",oldest:"Oldest papers first"};
+      const noListening=jobs.length && !jobs.some(job=>Number(job.listening_seconds)>0);
+      $("catalogueOrder").textContent=(labels[state.discoverSort]||labels.listening)+(!byDate&&noListening?". No listens recorded yet; ties use upload date.":"");
+      $("publicCount").textContent = jobs.length+" paper"+(jobs.length === 1 ? "" : "s");
+      const key = JSON.stringify(jobs.map(job => [job.job_id, title(job), job.status, job.progress_percent, job.stage, job.listening_seconds, job.share_count, job.share_clicks, job.page_count, job.visibility]));
+      if (state.publicCatalogueKey === key) return;
+      state.publicCatalogueKey = key;
+      $("publicCatalogue").innerHTML = jobs.length ? jobs.map((job, index) => {
+        const currentStatus = status(job);
+        const description = active(job) ? Math.round(pct(job))+"% · "+(job.stage || "Processing") : failed(job) ? "Audio conversion failed · PDF available" : details(job);
+        return '<article class="public-card" data-public-job="'+escapeHTML(job.job_id)+'" role="link" tabindex="0" aria-label="Open '+escapeHTML(title(job))+'">'+
+          '<span class="paper-index">'+String(index+1).padStart(2,"0")+'</span><div class="public-card-copy">'+
+          '<a class="public-title" href="#read/'+encodeURIComponent(job.job_id)+'">'+escapeHTML(title(job))+'</a>'+
+          '<div class="paper-engagement"><span title="Approximate total time all web listeners have spent on this paper">'+listeningLabel(job.listening_seconds)+'</span><span>'+Number(job.share_count || 0).toLocaleString()+' shares</span></div></div>'+
+          '<div class="public-status status '+escapeHTML(currentStatus)+'">'+escapeHTML(description)+'</div><span class="paper-arrow" aria-hidden="true">↗</span></article>';
+      }).join("") : '<div class="empty">No public papers yet.</div>';
+      $("publicCatalogue").querySelectorAll("[data-public-job]").forEach(card => {
+        const job=jobs.find(item=>item.job_id===card.dataset.publicJob);
+        if (job && failed(job)) appendCopyError(card.querySelector(".public-status"),job.error || "Audio conversion failed",{job,action:"convert_pdf"});
+        card.onclick = event => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          const job = jobs.find(item => item.job_id === card.dataset.publicJob);
+          if (job) openDetail(job);
+        };
+        card.onkeydown = event => { if (event.target === card && ["Enter"," "].includes(event.key)) { event.preventDefault(); card.click(); } };
+      });
+    }
+    function selectedTab() {
+      return new URL(location.href).searchParams.get("tab") === "library" ? "library" : "discover";
+    }
+    function activateView(view, clearDetail = true) {
+      view = view === "library" ? "library" : "discover";
+      const address = new URL(location.href);
+      address.searchParams.set("tab", view);
+      if (clearDetail) address.hash = "";
+      if (address.href !== location.href) history.pushState(null, "", address.pathname+address.search+address.hash);
+      route();
+      if (view === "library" && !webSession.user) {
+        window.openPdf2PodcastSignIn?.();
+        return;
       }
+      if (view === "library" && !webSession.termsRequired) loadPersonalJobs(true);
+    }
+    async function loadPublicJobs(silent = false) {
+      const requestId=++state.catalogueRequest;
+      try {
+        const payload = await webRequest("/api/public/jobs?limit=100&sort="+state.discoverSort);
+        if(requestId!==state.catalogueRequest)return;
+        state.publicJobs = Array.isArray(payload?.jobs) ? payload.jobs.filter(job => job.visibility === "public") : [];
+        if (state.currentView === "discover") state.jobs = state.publicJobs;
+        renderPublicCatalogue();
+        if (state.detailJobID && state.currentView === "discover") renderDetail();
+      } catch (error) {
+        if (!silent && requestId===state.catalogueRequest) showError($("publicCatalogue"),"Public papers could not load: "+error.message,{error,action:"load_discover"});
+      }
+    }
+    async function loadPersonalJobs(silent = false) {
+      if (!webSession.user || webSession.termsRequired) return;
+      const requestId = ++state.personalRequest, generation = webSession.sessionGeneration;
+      try {
+        const response = await request("/api/audio/jobs?limit=100", {cache:"no-store"});
+        const body = await response.json();
+        if (requestId !== state.personalRequest || generation !== webSession.sessionGeneration || !webSession.user) return;
+        state.personalJobs = Array.isArray(body) ? body : (body.jobs || []);
+        state.personalJobs.forEach(job => state.jobDetails.set(job.job_id, job));
+        state.jobsLoaded = true;
+        if (state.currentView === "library") { state.jobs = state.personalJobs; render(); }
+      } catch (error) {
+        if (!silent && requestId === state.personalRequest && generation === webSession.sessionGeneration) showError($("library"),"Could not load your library: "+error.message,{error,action:"load_library"});
+      }
+    }
+    function openDetail(job) { window.openPdf2PodcastReader?.(job, true); }
+    function route() {
+      const previous = state.currentView;
+      state.currentView = selectedTab();
+      state.jobs = state.currentView === "library" ? state.personalJobs : state.publicJobs;
+      state.detailJobID = null;
+      $("detailView").hidden = true;
+      $("discoverView").hidden = state.currentView !== "discover";
+      $("libraryView").hidden = state.currentView !== "library";
+      document.querySelectorAll("[data-view]").forEach(item => {
+        const current = item.dataset.view === state.currentView;
+        item.classList.toggle("active", current);
+        if (current) item.setAttribute("aria-current", "page");
+        else item.removeAttribute("aria-current");
+      });
+      if (state.currentView === "library") {
+        render();
+        if (webSession.user && !webSession.termsRequired && (previous !== "library" || !state.jobsLoaded)) loadPersonalJobs(true);
+      } else renderPublicCatalogue();
+      window.syncPdf2PodcastRoute?.();
     }
     function renderDetail() {
       const job = detailJob();
@@ -665,7 +1662,7 @@
             const isSummary = button.hasAttribute("data-play-summary");
             const item = paragraphs[Number(isSummary ? button.dataset.playSummary : button.dataset.playSource)];
             const time = isSummary ? item.summaryStart : item.sourceStart;
-            if (time !== null) selectAndPlay(job, false, time);
+            if (time !== null) selectAndPlay(job, time);
           };
         });
         $("chapters").querySelectorAll("[data-copy]").forEach(button => { button.onclick = () => copyOriginal(paragraphs[Number(button.dataset.copy)], button); });
@@ -728,24 +1725,12 @@
       });
       $("chapters").querySelectorAll(".chapter-block").forEach(block => block.classList.toggle("current", !!block.querySelector(".paragraph-row.current")));
     }
-    async function loadJobs(silent = false) {
-      if (!token()) { $("connectionLabel").textContent = "Token needed"; if (!silent) $("settingsOverlay").classList.add("open"); return; }
-      try {
-        const response = await request("/api/audio/jobs?limit=100");
-        const body = await response.json();
-        state.jobs = Array.isArray(body) ? body : (body.jobs || []);
-        state.jobsLoaded = true;
-        $("connectionLabel").textContent = "Server connected";
-        render();
-      } catch (error) {
-        $("connectionLabel").textContent = "Connection failed";
-        if (!silent) { $("settingsMessage").textContent = "Could not load library: "+error.message; $("settingsOverlay").classList.add("open"); }
-      }
-    }
-    function playbackStatus(message, isError = false) {
+    async function loadJobs(silent = false) { return loadPersonalJobs(silent); }
+    function playbackStatus(message, isError = false, error = null) {
       $("playbackStatus").textContent = message;
       $("playbackNotice").hidden = !isError;
-      $("playbackNotice").textContent = isError ? message : "";
+      if (isError) showError($("playbackNotice"),message,{error,job:playingJob(),action:"play_audio"});
+      else $("playbackNotice").replaceChildren();
     }
     function playbackFailed(error) {
       if (error.name === "AbortError") return;
@@ -753,7 +1738,7 @@
       const message = error.name === "NotAllowedError"
         ? "Your browser paused playback. Tap Play again to start."
         : "Playback failed: "+error.message;
-      playbackStatus(message, true);
+      playbackStatus(message, true, error);
       console.error("Pdf2Podcast playback:", error.name, error.message);
       syncPlayButtons();
     }
@@ -770,12 +1755,10 @@
     function seekTo(seconds) {
       const a = $("audio"), target = Math.max(0, Number(seconds) || 0);
       state.pendingSeek = Number.isFinite(a.duration) ? Math.min(target, a.duration) : target;
-      setTranscriptFollowing(true);
       const applySeek = () => {
         a.currentTime = Number.isFinite(a.duration) ? Math.min(target, a.duration) : target;
         state.pendingSeek = null;
         syncTimeline();
-        highlightTranscript(true);
       };
       if (a.readyState >= 1) applySeek();
       else {
@@ -784,35 +1767,30 @@
           if (attempt === state.playRequest) applySeek();
           a.onloadedmetadata = null;
         };
-        highlightTranscript(true);
         highlightChapters();
       }
     }
-    function selectAndPlay(job, openTranscript = false, startAt = null) {
-      job = state.jobs.find(item => item.job_id === job.job_id) || job;
+    function selectAndPlay(job, startAt = null) {
+      job = currentJob(job.job_id) || job;
       if (!complete(job)) return;
       const a = $("audio");
       if (state.playingJobID === job.job_id && a.src && !a.error) {
         if (startAt !== null) { seekTo(startAt); startPlayback(); }
-        else if (!openTranscript) { if (a.paused) startPlayback(); else a.pause(); }
-        if (openTranscript) showTranscript(job);
+        else { if (a.paused) startPlayback(); else a.pause(); }
         return;
       }
       try {
         if (!job.playback_url) throw new Error("The streaming link is not ready. Refresh the library and tap Play again.");
         const mediaURL = new URL(job.playback_url, apiBase()+"/");
         if (mediaURL.origin !== new URL(apiBase()).origin) throw new Error("The audio link does not match your server.");
+        flushListening();
         state.playRequest++;
         a.pause();
         a.onloadedmetadata = null;
         state.selected = job;
         state.playingJobID = job.job_id;
         state.audioURL = mediaURL.href;
-        state.transcript = []; state.transcriptJob = null; state.manifest = null;
-        state.playbackParagraphs = [];
-        state.activeLine = -1; state.pendingSeek = null;
-        setTranscriptFollowing(true);
-        $("transcriptScroll").innerHTML = '<div class="transcript-loading">Loading the transcript…</div>';
+        state.pendingSeek = null;
         $("player").classList.add("visible"); $("nowTitle").textContent = title(job);
         tint($("player").querySelector(".cover"), job.job_id);
         // Keep the authenticated streaming URL on the media element for native Range requests.
@@ -821,9 +1799,7 @@
         if (startAt !== null) seekTo(startAt);
         // Play synchronously in the click handler to retain Safari's user gesture.
         startPlayback();
-        loadPlaybackExperience(job);
         highlightChapters();
-        if (openTranscript) showTranscript(job);
       } catch (error) { playbackFailed(error); }
     }
     async function loadExperience(job) {
@@ -848,120 +1824,6 @@
       state.experiences.set(job.job_id, entry);
       return entry.promise;
     }
-    async function loadPlaybackExperience(job) {
-      const attempt = state.playRequest;
-      try {
-        const data = await loadExperience(job);
-        if (attempt !== state.playRequest || state.playingJobID !== job.job_id || state.transcriptJob === job.job_id) return;
-        state.manifest = data.manifest;
-        state.transcript = data.lines;
-        state.playbackParagraphs = data.paragraphs;
-        state.transcriptJob = job.job_id;
-        renderTranscript();
-      } catch (error) {
-        if (attempt === state.playRequest && state.playingJobID === job.job_id) {
-          $("transcriptScroll").innerHTML = '<div class="transcript-loading">Transcript could not load: '+escapeHTML(error.message)+'</div>';
-        }
-      }
-    }
-    function renderTranscript() {
-      state.activeLine = -1;
-      if (!state.transcript.length) {
-        $("transcriptScroll").innerHTML = '<div class="transcript-loading">No transcript text was produced.</div>';
-        return;
-      }
-      const companion = paperCompanion(state.manifest);
-      let previousParagraph = null;
-      $("transcriptScroll").innerHTML = state.transcript.map((item, i) => {
-        const paragraph = paragraphForLine(state.playbackParagraphs, item);
-        const guide = guideLine(item), summary = summaryLine(item, companion);
-        const displayText = guide ? item.text : textValue(item.source_text) || (companion ? paragraph?.source : "") || item.text;
-        const pages = pageReference(item) || paragraph?.pages;
-        const voice = summary ? "AI summary"+(companion ? " · female" : "") : guide ? "Guide · "+(item.kind || "commentary") : companion ? "Paper narration · male" : "Source narration";
-        const label = '<span class="speaker-label">'+escapeHTML([voice, pages].filter(Boolean).join(" · "))+'</span>';
-        const context = paragraph && paragraph !== previousParagraph ? '<div class="transcript-context">'+escapeHTML(paragraph.heading)+'<b>'+escapeHTML(paragraph.title)+'</b></div>' : '';
-        previousParagraph = paragraph;
-        return context+'<p class="transcript-line '+(guide ? "guide" : "source")+(summary ? " ai-summary" : "")+'" tabindex="0" role="button" aria-label="'+escapeHTML(voice)+'. Seek to '+fmtTime(item.t)+'" data-line="'+i+'" data-time="'+item.t+'">'+label+escapeHTML(displayText)+'</p>';
-      }).join("");
-      $("transcriptScroll").querySelectorAll("[data-time]").forEach(line => {
-        const seek = () => { if (playingJob()) selectAndPlay(playingJob(), false, Number(line.dataset.time)); };
-        line.onclick = seek;
-        line.onkeydown = event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); seek(); } };
-      });
-      highlightTranscript(state.followingTranscript);
-    }
-    function showTranscript(job = playingJob()) {
-      if (!job || !complete(job)) return;
-      if (state.playingJobID !== job.job_id) { selectAndPlay(job, true); return; }
-      $("transcriptView").classList.add("open");
-      document.body.style.overflow = "hidden";
-      setTranscriptFollowing(true);
-      layoutTranscript();
-      highlightTranscript(true);
-      $("closeTranscript").focus({preventScroll:true});
-      if (state.transcriptJob !== job.job_id) loadPlaybackExperience(job);
-      requestAnimationFrame(() => highlightTranscript(true));
-    }
-    function closeTranscript() {
-      $("transcriptView").classList.remove("open");
-      document.body.style.overflow = "";
-      $("player").focus({preventScroll:true});
-    }
-    function showPaperText() {
-      const job = playingJob();
-      if (!job) return;
-      const time = state.pendingSeek ?? $("audio").currentTime;
-      const paragraph = paragraphForLine(state.playbackParagraphs, state.transcript[state.activeLine]) ||
-        [...state.playbackParagraphs].reverse().find(item => item.sourceStart !== null && item.sourceStart <= time && (item.end === null || time < item.end));
-      closeTranscript();
-      if (state.detailJobID !== job.job_id) openDetail(job);
-      if (state.chapterJob !== job.job_id) return;
-      $("paperSearch").value = ""; filterParagraphs();
-      const row = paragraph && $("chapters").querySelector('[data-paragraph="'+paragraph.index+'"]');
-      if (row) row.querySelector("details").open = true;
-      const target = row || $("chaptersSection");
-      target.scrollIntoView({block:"start", behavior:"instant"});
-      (row ? row.querySelector("summary") : $("heroTranscript")).focus({preventScroll:true});
-    }
-    function layoutTranscript() {
-      if (!$("transcriptView").classList.contains("open")) return;
-      const bottom = window.innerHeight - $("transcriptControls").offsetTop + 12;
-      $("transcriptScroll").style.bottom = bottom+"px";
-    }
-    function setTranscriptFollowing(follow) {
-      state.followingTranscript = follow;
-      $("recenterTranscript").hidden = follow;
-      layoutTranscript();
-    }
-    function centerTranscriptLine(line, immediate) {
-      if (!line || !$("transcriptView").classList.contains("open")) return;
-      const scroller = $("transcriptScroll"), bounds = scroller.getBoundingClientRect(), rect = line.getBoundingClientRect();
-      // Long paragraphs start in view; short lines sit at the center of the reading area.
-      const offset = rect.height > bounds.height - 32 ? 16 : (bounds.height - rect.height)/2;
-      scroller.scrollTo({top: scroller.scrollTop + rect.top - bounds.top - offset, behavior: immediate || matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
-    }
-    function highlightTranscript(forceCenter = false) {
-      const lines = [...$("transcriptScroll").querySelectorAll(".transcript-line")];
-      if (!lines.length) return;
-      const current = state.pendingSeek ?? $("audio").currentTime;
-      let index = -1;
-      for (let i = 0; i < state.transcript.length; i++) {
-        if (Number(state.transcript[i].t || 0) <= current) index = i; else break;
-      }
-      if (index >= 0) {
-        const end = firstTime(state.transcript[index].end);
-        if (end !== null && current >= end) index = -1;
-      }
-      const changed = index !== state.activeLine;
-      if (changed) {
-        state.activeLine = index;
-        lines.forEach((line,i) => {
-          line.classList.toggle("active", i === index);
-          if (i === index) line.setAttribute("aria-current", "true"); else line.removeAttribute("aria-current");
-        });
-      }
-      if (forceCenter || (changed && state.followingTranscript)) centerTranscriptLine(lines[index], forceCenter);
-    }
     function syncPlayButtons() {
       const a = $("audio"), isPlaying = !!state.playingJobID && !a.paused && !a.ended;
       const busy = state.buffering;
@@ -976,7 +1838,7 @@
         button.setAttribute("aria-label", loading ? "Buffering audio. Pause" : playing ? "Pause" : "Play");
         button.setAttribute("aria-busy", String(loading));
       };
-      setButton($("playPause"), true); setButton($("fullPlayPause"), true);
+      setButton($("playPause"), true);
       setButton($("heroPlay"), state.detailJobID === state.playingJobID);
       $("library").querySelectorAll(".track").forEach(row => {
         const current = row.dataset.job === state.playingJobID;
@@ -999,23 +1861,43 @@
     function syncTimeline() {
       checkSleepTimer();
       const a = $("audio"), fraction = Number.isFinite(a.duration) && a.duration > 0 ? a.currentTime/a.duration : 0, value = Math.round(fraction*1000);
-      $("seek").value = value; $("fullSeek").value = value;
-      $("elapsed").textContent = $("fullElapsed").textContent = fmtTime(a.currentTime);
-      $("duration").textContent = $("fullDuration").textContent = fmtTime(a.duration);
-      highlightTranscript(); highlightChapters();
+      $("seek").value = value;
+      $("elapsed").textContent = fmtTime(a.currentTime);
+      $("duration").textContent = fmtTime(a.duration);
+      highlightChapters();
     }
-    function cycleSpeed() {
-      state.speedIndex = (state.speedIndex+1)%speeds.length;
-      $("audio").playbackRate = speeds[state.speedIndex];
-      const label = speeds[state.speedIndex]+"×"; $("speed").textContent = label; $("fullSpeed").textContent = label;
+    const listening = {job:null,wall:performance.now(),position:0,rate:1,running:false,pending:new Map()};
+    function sampleListening(stop=false) {
+      const audio=$("audio"),now=performance.now(),wall=Math.max(0,(now-listening.wall)/1000),advance=audio.currentTime-listening.position;
+      if(listening.job && listening.job===state.playingJobID && listening.running && !audio.seeking && advance>0 && advance<=wall*listening.rate+2) {
+        const seconds=Math.min(wall,advance/listening.rate);
+        listening.pending.set(listening.job,(listening.pending.get(listening.job)||0)+seconds);
+      }
+      listening.job=state.playingJobID;listening.wall=now;listening.position=audio.currentTime;listening.rate=audio.playbackRate||1;
+      listening.running=!stop && !audio.paused && !audio.ended && !audio.seeking && audio.readyState>=2 && !state.buffering;
     }
-    function changeTextSize(delta) {
-      state.textSize = Math.max(24, Math.min(64, state.textSize+delta));
-      document.documentElement.style.setProperty("--transcript-size", state.textSize+"px");
-      localStorage.setItem("pdf2podcast_text_size", String(state.textSize));
-      $("smallerText").disabled = state.textSize <= 24;
-      $("largerText").disabled = state.textSize >= 64;
-      if (state.followingTranscript) highlightTranscript(true);
+    function flushListening(unloading=false) {
+      sampleListening();
+      for(const [job,seconds] of listening.pending) {
+        if(seconds<0.1)continue;
+        listening.pending.delete(job);
+        let remaining=seconds;
+        while(remaining>=0.1) {
+          const amount=Math.min(300,remaining);remaining-=amount;
+          const path="/api/public/jobs/"+encodeURIComponent(job)+"/listen",body=JSON.stringify({seconds:amount});
+          if(unloading && navigator.sendBeacon?.(path,new Blob([body],{type:"application/json"})))continue;
+          fetch(path,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body,keepalive:true}).catch(()=>{
+            if(!unloading)listening.pending.set(job,(listening.pending.get(job)||0)+amount);
+          });
+        }
+      }
+    }
+    function setPlaybackSpeed(value) {
+      const index = speeds.indexOf(Number(value));
+      if (index < 0) return;
+      state.speedIndex = index;
+      $("audio").playbackRate = speeds[index];
+      ["speed", "pdfReaderSpeed"].forEach(id => { if ($(id)) $(id).value = String(speeds[index]); });
     }
     function clearSleepTimer() {
       clearTimeout(state.sleepTimeout);
@@ -1044,30 +1926,391 @@
         checkSleepTimer();
       }
     }
-    $("settingsButton").onclick = () => $("settingsOverlay").classList.add("open");
-    $("uploadButton").onclick = () => { $("uploadMessage").textContent = ""; $("uploadOverlay").classList.add("open"); };
+    const webSession = { config: null, user: null, usage: null, adminUsage: null, sharing: null, retryGuidance: "", termsRequired: false, sessionGeneration: 0, lastAuthError: null };
+    const browserFetch = window.fetch.bind(window);
+    function humanBytes(value) {
+      const bytes = Number(value || 0);
+      if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+      const units = ["B","KB","MB","GB","TB"], index = Math.min(Math.floor(Math.log(bytes)/Math.log(1024)), units.length-1);
+      return (bytes/Math.pow(1024,index)).toFixed(index ? 1 : 0)+" "+units[index];
+    }
+    function mountWebAccount() {
+      document.body.classList.add("auth-pending");
+      $("signinPanel").innerHTML = '<div><p class="signin-kicker">Your listening library</p><h2>Save your place.</h2><p>Sign in to upload papers, track conversions, and see your usage. Free uploads are public; Pro can keep them private.</p><div id="googleSignin" class="google-signin"></div><div id="authStatus" class="auth-status">Checking your session…</div></div><button class="terms-link" id="publicTermsButton" type="button">Terms of Use</button>';
+      const actions = $("discoveryTopActions");
+      if (actions) actions.insertAdjacentHTML("beforeend", '<div id="accountChip" class="account-chip" hidden><span id="accountAvatar" class="account-avatar"></span><span class="account-copy"><span id="accountName" class="account-name"></span><span id="accountEmail" class="account-email"></span></span><span id="accountPlan" class="plan-badge">Free</span><button id="signOutButton" class="secondary signout" type="button">Sign out</button></div>');
+      const topbar = $("libraryTopbar");
+      if (topbar) topbar.insertAdjacentHTML("afterend", '<section id="usageDashboard" class="usage-dashboard" hidden><div class="usage-shell"><div class="usage-heading"><h2>Account usage</h2></div><div class="usage-grid"><div class="usage-stat"><div id="usageUploads" class="usage-value">0</div><div class="usage-label">PDFs uploaded</div></div><div class="usage-stat"><div id="usageBytes" class="usage-value">0 B</div><div class="usage-label">Data uploaded</div></div></div><div id="adminUsage" class="admin-usage" hidden></div></div></section>');
+      $("usageDashboard").insertAdjacentHTML("beforeend",'<details id="sharingDashboard" class="sharing-summary" hidden><summary>Shared links</summary><p>Shares and link opens for '+(webSession.user?.is_admin?'all listeners':'your papers')+'. Visitor counts are approximate.</p><div id="sharingTable" class="admin-table-wrap"></div></details>');
+      $("signOutButton").onclick = signOut;
+      $("publicTermsButton").onclick = () => showTerms(false);
+    }
+    function installCookieRequests() {
+      localStorage.removeItem("pdf2podcast_api_url");
+      localStorage.removeItem("pdf2podcast_mobile_token");
+    }
+    async function responseMessage(response, fallback) {
+      let payload = null;
+      try { payload = await response.clone().json(); } catch (_) {}
+      if (payload && typeof payload === "object") {
+        const message = payload.message || payload.detail || payload.error;
+        if (typeof message === "string" && message) return message;
+        if (message && typeof message.message === "string") return message.message;
+      }
+      try { const text = await response.text(); if (text.trim()) return text.trim(); } catch (_) {}
+      return fallback;
+    }
+    async function webRequest(path, options = {}) {
+      let response;
+      try { response = await fetch(path, {...options, credentials:"same-origin", cache:"no-store"}); } catch(error) { error.requestPath=path; throw error; }
+      if (!response.ok) throw await responseError(response,path);
+      if (response.status === 204) return null;
+      const type = response.headers.get("content-type") || "";
+      return type.includes("application/json") ? response.json() : null;
+    }
+    function showSignedOut(message = "Sign in with Google to continue.") {
+      webSession.user = null; webSession.usage = null; webSession.adminUsage = null; webSession.sharing = null;
+      document.body.classList.remove("auth-pending","authenticated");
+      document.body.classList.add("signed-out");
+      $("accountChip").hidden = true; $("usageDashboard").hidden = true; $("sharingDashboard").hidden = true;
+      $("headerSignInButton").hidden = false;
+      state.personalJobs = []; state.personalRequest++; state.jobDetails.clear(); state.experiences.clear();
+      if (state.selected && state.selected.visibility !== "public") {
+        state.playRequest++; $("audio").pause(); $("audio").onloadedmetadata = null;
+        $("audio").removeAttribute("src"); $("audio").load();
+        state.selected = null; state.playingJobID = null; state.audioURL = null; state.pendingSeek = null;
+        $("player").classList.remove("visible");
+      }
+      window.resetPdf2PodcastPrivacy?.();
+      syncVisibilityPickers();
+      route();
+      const missingGoogleClient = webSession.config && !webSession.config.google_client_id;
+      $("authStatus").textContent = missingGoogleClient
+        ? "Google sign-in is not configured yet. The server owner must add a Google Web OAuth client ID for pdf2podcast.tchlabs.net."
+        : message;
+      $("authStatus").classList.toggle("error", !!missingGoogleClient);
+      renderGoogleButton();
+    }
+    function renderGoogleButton() { window.renderPdf2PodcastGoogle?.(); }
+    function acceptGoogleCredential(result) { window.submitPdf2PodcastSignIn?.(result); }
+    async function signOut() {
+      webSession.sessionGeneration++;
+      $("signOutButton").disabled = true;
+      try {
+        await webRequest("/api/web/auth/logout", {method:"POST"});
+        if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+        $("accountError")?.remove();
+        showSignedOut("Signed out. Sign in to return to your library.");
+      } catch (error) {
+        let status = $("accountError");
+        if (!status) { status=document.createElement("span"); status.id="accountError"; status.setAttribute("role","alert"); $("accountChip").appendChild(status); }
+        showError(status,"Could not sign out: "+error.message,{error,action:"sign_out"});
+      } finally {
+        webSession.sessionGeneration++;
+        $("signOutButton").disabled = false;
+      }
+    }
+    function renderWebAccount() {
+      const user = webSession.user || {}, usage = webSession.usage || {};
+      const avatar = $("accountAvatar");
+      avatar.innerHTML = user.picture ? '<img src="'+escapeHTML(user.picture)+'" alt="">' : escapeHTML((user.name || user.email || "P").slice(0,1).toUpperCase());
+      $("accountName").textContent = user.name || user.email || "Pdf2Podcast listener";
+      $("accountEmail").textContent = user.email || "";
+      $("accountPlan").textContent = isProPlan() ? "Pro" : "Free";
+      $("accountPlan").dataset.plan = isProPlan() ? "pro" : "free";
+      $("accountPlan").title = isProPlan() ? "Pro: private and public papers" : "Free: public uploads";
+      syncVisibilityPickers();
+      if (state.currentView === "library") render();
+      window.syncPdf2PodcastPrivacy?.();
+      $("accountChip").hidden = false; $("usageDashboard").hidden = false; $("headerSignInButton").hidden = true;
+      $("usageUploads").textContent = Number(usage.uploads_total || 0).toLocaleString();
+      $("usageBytes").textContent = humanBytes(usage.bytes_uploaded);
+      renderModelUsage();
+      const admin = $("adminUsage"), users = Array.isArray(webSession.adminUsage?.users) ? webSession.adminUsage.users : [];
+      if (user.is_admin && users.length) {
+        admin.hidden = false;
+        admin.innerHTML = '<details><summary>All-user usage · '+users.length+' accounts</summary><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>User</th><th>Uploads</th><th>Uploaded</th><th>Uploads / min</th><th>Queue / min</th></tr></thead><tbody>'+users.map(item => '<tr><td>'+escapeHTML(item.email || item.name || "Unknown")+'</td><td>'+Number(item.uploads_total || 0).toLocaleString()+'</td><td>'+humanBytes(item.bytes_uploaded)+'</td><td>'+Number(item.uploads_last_minute || 0)+'</td><td>'+Number(item.queue_submissions_last_minute || 0)+'</td></tr>').join("")+'</tbody></table></div></details>';
+      } else { admin.hidden = true; admin.innerHTML = ""; }
+    }
+    function renderModelUsage() {
+      let panel=$("modelUsage");
+      if(!panel){panel=document.createElement("details");panel.id="modelUsage";panel.className="sharing-summary";$("usageDashboard").appendChild(panel);}
+      const admin=!!webSession.user?.is_admin;
+      const rows=(admin?webSession.adminUsage?.model_usage:webSession.usage?.model_usage)||[];
+      const count=value=>value==null?"Unknown":Number(value).toLocaleString();
+      panel.innerHTML='<summary>'+(admin?'All-user AI usage':'AI usage')+'</summary><p>Provider-reported tokens from this update onward, including retries and rejected responses. Cached tokens are included in input totals. Requests without reported usage are unknown, not free. This is token usage, not a billing estimate.</p><div class="admin-table-wrap"><table class="admin-table"><thead><tr>'+(admin?'<th>Account</th>':'')+'<th>Provider / model</th><th>Calls</th><th>Fallbacks</th><th>Input tokens</th><th>Output tokens</th><th>Cached input</th><th>Unreported calls</th></tr></thead><tbody>'+rows.map(row=>'<tr>'+(admin?'<td>'+escapeHTML(row.user_email||'Unattributed')+'</td>':'')+'<td>'+escapeHTML(row.provider+' / '+row.model)+'</td><td>'+count(row.requests)+'</td><td>'+count(row.fallback_requests)+'</td><td>'+count(row.input_tokens)+'</td><td>'+count(row.output_tokens)+'</td><td>'+count(row.cached_input_tokens)+'</td><td>'+count(row.unknown_usage_requests)+'</td></tr>').join('')+'</tbody></table></div>'+(rows.length?'':'<p>No model calls recorded yet.</p>');
+    }
+    function renderSharingStats() {
+      const links=(webSession.sharing?.links || []).filter(link=>(link.share_count || link.click_count) && currentJob(link.job_id)?.visibility !== "private"),admin=!!webSession.user?.is_admin;
+      $("sharingDashboard").hidden=!links.length;
+      if(!links.length){$("sharingTable").replaceChildren();return;}
+      $("sharingDashboard").querySelector("p").textContent="Shares and link opens for "+(admin?"all listeners":"your shared links")+". Visitor counts are approximate.";
+      $("sharingTable").innerHTML='<table class="admin-table"><thead><tr><th>Paper</th>'+(admin?'<th>Shared by</th>':'')+'<th>Shares</th><th>Link opens</th><th>Visitors</th></tr></thead><tbody>'+links.map(link=>'<tr><td><a href="#read/'+encodeURIComponent(link.job_id)+'">'+escapeHTML(link.title || link.job_id)+'</a></td>'+(admin?'<td>'+escapeHTML(link.sharer_name || link.sharer_email || 'Anonymous')+'</td>':'')+'<td>'+Number(link.share_count||0).toLocaleString()+'</td><td>'+Number(link.click_count||0).toLocaleString()+'</td><td>'+Number(link.unique_clicks||0).toLocaleString()+'</td></tr>').join('')+'</tbody></table>';
+    }
+    async function recordSharedVisit() {
+      const url=new URL(location.href),code=url.searchParams.get("share");
+      if(!code)return;
+      url.searchParams.delete("share");history.replaceState(history.state,"",url.pathname+url.search+url.hash);
+      if(!/^[A-Za-z0-9_-]{12,64}$/.test(code))return;
+      try {
+        const result=await webRequest("/api/public/shares/"+encodeURIComponent(code)+"/click",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+        if(/^pdf-[a-f0-9]{16}$/.test(result.job_id))history.replaceState(history.state,"",url.pathname+url.search+"#read/"+result.job_id);
+      } catch (_) { /* Counting a visit must not prevent the paper from opening. */ }
+    }
+    const urlImport = {url:null,running:false,attempted:false};
+    function clearImportURL() {
+      const address=new URL(location.href); address.searchParams.delete("import");
+      history.replaceState(history.state,"",address.pathname+address.search+address.hash);
+      urlImport.url=null;
+    }
+    function initializeURLImport() {
+      const source=new URL(location.href).searchParams.get("import");
+      if(!source)return;
+      urlImport.url=source;
+      $("urlImportBanner").hidden=false;
+      $("urlImportSource").textContent=source;
+      $("urlImportStatus").textContent="Checking your account before importing this PDF...";
+      $("urlImportAction").onclick=()=>{urlImport.attempted=false;continueURLImport(true,true);};
+      $("urlImportCancel").onclick=()=>{if(!urlImport.running){clearImportURL();$("urlImportBanner").hidden=true;}};
+    }
+    async function continueURLImport(promptForSignIn=false, confirmed=false) {
+      if(!urlImport.url || urlImport.running || urlImport.attempted)return;
+      syncVisibilityPickers();
+      if(!webSession.user) {
+        $("urlImportStatus").textContent="Sign in to import this PDF.";
+        $("urlImportAction").textContent="Sign in to import";
+        if(promptForSignIn)window.openPdf2PodcastSignIn?.();
+        return;
+      }
+      if(webSession.termsRequired) {
+        $("urlImportStatus").textContent="Accept the Terms to continue.";
+        $("urlImportAction").textContent="Review terms";
+        if(promptForSignIn)showTerms(true);
+        return;
+      }
+      if(!confirmed) {
+        $("urlImportStatus").textContent="";
+        $("urlImportAction").textContent="Import PDF";
+        return;
+      }
+      const visibility=canUploadPrivate() && !$("importVisibility").checked ? "private" : "public";
+      urlImport.running=true;urlImport.attempted=true;
+      syncVisibilityPickers();
+      $("urlImportAction").disabled=true;$("urlImportCancel").disabled=true;
+      $("urlImportAction").textContent="Importing...";
+      $("urlImportStatus").textContent="Downloading the PDF and preparing your library entry...";
+      try {
+        const payload=await webRequest("/api/audio/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:urlImport.url,visibility})});
+        const job=payload?.job || payload;
+        rememberJob(job);
+        clearImportURL();
+        $("urlImportStatus").textContent=job.deduplicated ? "Added to your library." : "Queued.";
+        $("urlImportAction").textContent="View library";
+        $("urlImportAction").onclick=()=>activateView("library");
+        $("urlImportCancel").textContent="Dismiss";
+        await Promise.allSettled([loadPersonalJobs(true),loadPublicJobs(true),refreshWebAccount(true)]);
+        activateView("library");
+      } catch(error) {
+        showError($("urlImportStatus"),"Import failed: "+error.message,{error,action:"import_pdf_url"});
+        $("urlImportAction").textContent="Retry import";
+      } finally {
+        urlImport.running=false;
+        syncVisibilityPickers();
+        $("importVisibility").disabled = !urlImport.url || !canUploadPrivate();
+        $("urlImportAction").disabled=false;$("urlImportCancel").disabled=false;
+      }
+    }
+    async function refreshWebAccount(quiet = false, enterApp = false) {
+      const generation = webSession.sessionGeneration, privacyRevision = state.privacyRevision;
+      try {
+        const response = await fetch("/api/web/me",{credentials:"same-origin",cache:"no-store"});
+        if (generation !== webSession.sessionGeneration) return false;
+        if (response.status === 401) {
+          webSession.lastAuthError=Object.assign(new Error("Google sign-in finished, but Pdf2Podcast could not keep your session. Allow cookies for this site and try again. If it still fails, copy this error."),{code:"auth_session_missing",status:401,requestPath:"/api/web/me"});
+          showSignedOut(); return false;
+        }
+        if (!response.ok) throw await responseError(response,"/api/web/me");
+        const payload = await response.json();
+        if (generation !== webSession.sessionGeneration || privacyRevision !== state.privacyRevision) return false;
+        webSession.lastAuthError=null;
+        webSession.user = payload.user; webSession.usage = payload.usage; webSession.adminUsage = payload.admin_usage || null; webSession.sharing = payload.sharing || null;
+        webSession.termsRequired = !!payload.terms_required;
+        if (payload.public_terms) { state.publicTerms = {...state.publicTerms, ...payload.public_terms}; renderTerms(); }
+        renderWebAccount(); renderSharingStats();
+        document.body.classList.remove("auth-pending","signed-out"); document.body.classList.add("authenticated");
+        if (webSession.termsRequired) { if (!$("termsOverlay").classList.contains("open")) showTerms(true); return true; }
+        if (enterApp) { await loadPersonalJobs(true); route(); }
+        return true;
+      } catch (error) {
+        if (generation !== webSession.sessionGeneration) return false;
+        webSession.lastAuthError=error;
+        if (!quiet) showSignedOut("Could not check your session: "+error.message);
+        return false;
+      }
+    }
+    function renderTerms() {
+      const terms = state.publicTerms;
+      if (!terms) return;
+      $("termsTitle").textContent = terms.title || "Terms of Use";
+      $("termsMeta").textContent = [terms.version ? "Version "+terms.version : "", terms.effective_date ? "Effective "+terms.effective_date : ""].filter(Boolean).join(" · ") || "Terms of Use";
+      const sections = Array.isArray(terms.sections) ? terms.sections : [];
+      $("termsSections").innerHTML = sections.length ? sections.map(section => '<section><h3>'+escapeHTML(section.heading || "")+'</h3><p>'+escapeHTML(section.body || "")+'</p></section>').join("") : '<p>Terms are currently unavailable.</p>';
+    }
+    async function loadTerms() {
+      state.publicTerms = await webRequest("/api/public/terms");
+      renderTerms();
+      return state.publicTerms;
+    }
+    function showTerms(required) {
+      renderTerms();
+      $("termsOverlay").classList.add("open");
+      $("termsOverlay").classList.toggle("blocking", !!required);
+      $("termsAcceptance").hidden = !required;
+      $("acceptTerms").hidden = !required;
+      $("termsClose").hidden = !!required;
+      $("termsConsent").checked = false;
+      $("acceptTerms").disabled = true;
+      $("termsMessage").textContent = required ? "Review the terms and confirm the processing and publication permissions to finish creating your account." : "";
+    }
+    async function acceptAccountTerms() {
+      if (!$("termsConsent").checked || !state.publicTerms?.version) return;
+      $("acceptTerms").disabled = true;
+      $("termsMessage").textContent = "Creating your account…";
+      try {
+        await webRequest("/api/web/terms/accept", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({accepted:true, version:state.publicTerms.version})});
+        webSession.termsRequired = false;
+        $("termsOverlay").classList.remove("open","blocking");
+        await refreshWebAccount(false, true);
+        await continueURLImport();
+      } catch (error) {
+        showError($("termsMessage"),"Could not accept the terms: "+error.message,{error,action:"accept_terms"});
+        $("acceptTerms").disabled = !$("termsConsent").checked;
+      }
+    }
+    async function initializeWebApp() {
+      mountWebAccount(); installCookieRequests();
+      initializeURLImport();
+      try {
+        const startupURL = new URL(location.href);
+        const authFailed = startupURL.searchParams.get("auth_error") === "google";
+        const justSignedIn = startupURL.searchParams.has("signed_in");
+        if (justSignedIn || authFailed) {
+          try {
+            const saved = sessionStorage.getItem("pdf2podcast_auth_return");
+            sessionStorage.removeItem("pdf2podcast_auth_return");
+            if (saved) {
+              const destination = new URL(saved, location.origin);
+              if (destination.origin === location.origin) {
+                startupURL.searchParams.set("tab", destination.searchParams.get("tab") === "library" ? "library" : "discover");
+                if (!startupURL.hash && /^#(?:read|podcast)\/pdf-[a-f0-9]{16}$/.test(destination.hash)) startupURL.hash = destination.hash;
+              }
+            }
+          } catch (_) {}
+          startupURL.searchParams.delete("signed_in");startupURL.searchParams.delete("auth_error");
+          history.replaceState(history.state, "", startupURL.pathname+startupURL.search+startupURL.hash);
+        }
+        webSession.config = await webRequest("/api/web/config");
+        await Promise.all([loadTerms().catch(error => { showError($("termsSections"),"Terms could not load: "+error.message,{error,action:"load_terms"}); }), loadPublicJobs(), recordSharedVisit()]);
+        state.currentView = selectedTab();
+        state.jobs = state.currentView === "library" ? state.personalJobs : state.publicJobs;
+        const signedIn = await refreshWebAccount(true, justSignedIn);
+        if (!signedIn) showSignedOut(authFailed ? "Google sign-in could not be completed. Please try again." : undefined);
+        route();
+        if (!webSession.config.google_client_id) showSignedOut(); else renderGoogleButton();
+        if (authFailed) window.openPdf2PodcastSignIn?.("Sign-in did not finish. Check that this browser allows Google sign-in, then try again.");
+        else if (justSignedIn && !signedIn) {
+          const error=webSession.lastAuthError || Object.assign(new Error("Your sign-in session could not be loaded. Please try again."),{code:"auth_session_unavailable"});
+          window.openPdf2PodcastSignIn?.(error.message,error);
+        }
+        if (!authFailed && !justSignedIn && !signedIn && selectedTab() === "library" && !urlImport.url && webSession.config.google_client_id) window.openPdf2PodcastSignIn?.();
+        if(!authFailed && !(justSignedIn && !signedIn))await continueURLImport(true);
+      } catch (error) {
+        showSignedOut("Pdf2Podcast could not start: "+error.message);
+        $("authStatus").classList.add("error");
+        showError($("publicCatalogue"),"Pdf2Podcast could not start: "+error.message,{error,action:"startup"});
+      }
+    }
+    let uploadInProgress = false, uploadCloseTimer = null;
+    function showUploadProgress(loaded, total, transferred = false) {
+      const bar = $("uploadProgressBar"), known = Number.isFinite(total) && total > 0;
+      $("uploadProgress").hidden = false;
+      if (known || transferred) bar.value = transferred ? 100 : Math.min(100, Math.floor(loaded/total*100));
+      else bar.removeAttribute("value");
+      $("uploadPercent").textContent = transferred ? "100% uploaded" : known ? bar.value+"%" : "Uploading";
+      $("uploadBytes").textContent = humanBytes(loaded)+(known ? " / "+humanBytes(total) : " uploaded");
+    }
+    function openUpload() {
+      if (!webSession.user) { window.openPdf2PodcastSignIn?.(); return; }
+      if (webSession.termsRequired) { showTerms(true); return; }
+      clearTimeout(uploadCloseTimer);
+      if (!uploadInProgress) {
+        $("uploadMessage").textContent = ""; $("pdfFile").value = "";
+        $("uploadProgress").hidden = true; $("closeUpload").textContent = "Cancel";
+        syncVisibilityPickers(true);
+      }
+      $("uploadOverlay").classList.add("open");
+    }
+    $("discoverSort").onchange = () => {
+      state.discoverSort=$("discoverSort").value;renderPublicCatalogue();loadPublicJobs();
+    };
+    $("homeLink").onclick = event => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault(); activateView("discover"); window.scrollTo({top:0,behavior:"instant"});
+    };
+    $("headerSignInButton").onclick = () => window.openPdf2PodcastSignIn?.();
+    $("discoverUploadButton").onclick = openUpload;
+    $("uploadVisibility").onchange = () => syncVisibilityPickers();
+    $("importVisibility").onchange = () => syncVisibilityPickers();
+    document.querySelectorAll("[data-view]").forEach(button => button.onclick = () => activateView(button.dataset.view));
+    $("termsClose").onclick = () => { if (!webSession.termsRequired) $("termsOverlay").classList.remove("open"); };
+    $("termsConsent").onchange = () => { $("acceptTerms").disabled = !$("termsConsent").checked || !state.publicTerms?.version; };
+    $("acceptTerms").onclick = acceptAccountTerms;
     document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).classList.remove("open"));
     $("apiUrl").value = apiBase(); $("token").value = token();
     $("saveSettings").onclick = async () => {
       localStorage.setItem("pdf2podcast_api_url", $("apiUrl").value.trim());
       localStorage.setItem("pdf2podcast_mobile_token", $("token").value.trim());
       $("settingsMessage").textContent = "Connecting…"; await loadJobs(true);
-      if ($("connectionLabel").textContent === "Server connected") { $("settingsMessage").textContent = ""; $("settingsOverlay").classList.remove("open"); }
+      if (state.jobsLoaded) { $("settingsMessage").textContent = ""; $("settingsOverlay").classList.remove("open"); }
     };
     $("submitUpload").onclick = async () => {
+      if (uploadInProgress) return;
+      if (!webSession.user) { window.openPdf2PodcastSignIn?.(); return; }
+      if (webSession.termsRequired) { showTerms(true); return; }
+      const visibility = canUploadPrivate() && !$("uploadVisibility").checked ? "private" : "public";
       const file = $("pdfFile").files[0];
       if (!file) { $("uploadMessage").textContent = "Choose a PDF first."; return; }
-      $("submitUpload").disabled = true; $("uploadMessage").textContent = "Uploading "+file.name+"…";
-      const form = new FormData(); form.append("pdf", file, file.name);
+      const maximum = Number(webSession.usage?.limits?.max_upload_bytes || webSession.config?.max_upload_bytes || 0);
+      if (maximum && file.size > maximum) { showError($("uploadMessage"),"This PDF is too large. Please choose a smaller file.",{action:"upload_pdf",filename:file.name,fileBytes:file.size,error:{code:"file_too_large"}}); return; }
+      clearTimeout(uploadCloseTimer); uploadInProgress = true;
+      syncVisibilityPickers();
+      $("submitUpload").disabled = true; $("pdfFile").disabled = true;
+      $("submitUpload").textContent = "Uploading..."; $("closeUpload").textContent = "Hide";
+      $("uploadMessage").textContent = "Uploading "+file.name+"... Keep this tab open until the upload finishes.";
+      showUploadProgress(0, file.size);
+      webSession.retryGuidance = "";
       try {
-        const response = await request("/api/audio/upload", { method: "POST", body: form });
-        const job = await response.json();
-        $("uploadMessage").textContent = "Queued. You can close this window and follow progress in your library.";
-        setTimeout(() => $("uploadOverlay").classList.remove("open"), 1100);
-        await loadJobs(true);
+        const response = await requestPDFUpload(file, visibility, event => {
+          showUploadProgress(event.loaded, event.lengthComputable ? event.total : null);
+        }, event => {
+          showUploadProgress(event.loaded || file.size, event.lengthComputable ? event.total : file.size, true);
+          $("submitUpload").textContent = "Queueing...";
+          $("uploadMessage").textContent = "Upload complete. Waiting for the server to accept and queue the PDF...";
+        });
+        const payload = await response.json(), job = payload?.job || payload;
+        rememberJob(job);
+        $("uploadProgressBar").value = 100; $("uploadPercent").textContent = "100% uploaded";
+        $("uploadMessage").textContent = "Queued.";
+        uploadCloseTimer = setTimeout(() => $("uploadOverlay").classList.remove("open"), 1100);
+        await Promise.allSettled([loadPersonalJobs(true), loadPublicJobs(true), refreshWebAccount(true)]);
+        activateView("library");
       } catch (error) {
-        $("uploadMessage").textContent = "Upload failed: "+error.message+"\nServer: "+apiBase();
-      } finally { $("submitUpload").disabled = false; }
+        $("uploadProgress").hidden = true;
+        showError($("uploadMessage"),"Upload failed: "+error.message+(webSession.retryGuidance ? "\n"+webSession.retryGuidance : ""),{error,action:"upload_pdf",filename:file.name,fileBytes:file.size});
+      } finally {
+        uploadInProgress = false; $("submitUpload").disabled = false; $("pdfFile").disabled = false;
+        syncVisibilityPickers(); $("closeUpload").textContent = "Close";
+      }
     };
     $("detailBack").onclick = () => {
       if (history.state && history.state.pdf2podcastDetail) history.back();
@@ -1076,38 +2319,17 @@
     window.addEventListener("popstate", route);
     window.addEventListener("hashchange", route);
     $("heroPlay").onclick = () => detailJob() && selectAndPlay(detailJob());
-    $("heroTranscript").onclick = () => detailJob() && showTranscript(detailJob());
     $("paperSearch").oninput = filterParagraphs;
     $("clearPaperSearch").onclick = () => { $("paperSearch").value = ""; filterParagraphs(); $("paperSearch").focus(); };
-    $("transcriptPaper").onclick = showPaperText;
-    $("player").onclick = event => { if (!event.target.closest("button, input, select, a")) showTranscript(); };
+    $("player").onclick = event => { if (!event.target.closest("button, input, select, a") && playingJob()) openDetail(playingJob()); };
     $("player").onkeydown = event => {
-      if (event.target === $("player") && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); showTranscript(); }
+      if (event.target === $("player") && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); if (playingJob()) openDetail(playingJob()); }
     };
-    $("closeTranscript").onclick = closeTranscript;
-    document.addEventListener("keydown", event => { if (event.key === "Escape" && $("transcriptView").classList.contains("open")) closeTranscript(); });
-    $("recenterTranscript").onclick = () => { setTranscriptFollowing(true); highlightTranscript(true); };
-    const browseTranscript = () => {
-      if (state.followingTranscript) {
-        const scroller = $("transcriptScroll");
-        scroller.scrollTo({top:scroller.scrollTop, behavior:"instant"});
-        setTranscriptFollowing(false);
-      }
-    };
-    ["wheel", "touchstart", "pointerdown"].forEach(event => $("transcriptScroll").addEventListener(event, browseTranscript, {passive:true}));
-    $("transcriptScroll").addEventListener("keydown", event => {
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Tab"].includes(event.key)) browseTranscript();
-    });
-    window.addEventListener("resize", () => { layoutTranscript(); if (state.followingTranscript) highlightTranscript(true); });
-    new ResizeObserver(() => { layoutTranscript(); if (state.followingTranscript) highlightTranscript(true); }).observe($("transcriptControls"));
-    $("smallerText").onclick = () => changeTextSize(-4);
-    $("largerText").onclick = () => changeTextSize(4);
-    $("sleepTimer").onchange = setSleepTimer;
     document.addEventListener("visibilitychange", checkSleepTimer);
-    $("playPause").onclick = $("fullPlayPause").onclick = togglePlay;
-    $("speed").onclick = $("fullSpeed").onclick = cycleSpeed;
+    $("playPause").onclick = togglePlay;
+    $("speed").onchange = event => setPlaybackSpeed(event.target.value);
     document.querySelectorAll("[data-skip]").forEach(b => b.onclick = () => seekTo($("audio").currentTime+Number(b.dataset.skip)));
-    [$("seek"),$("fullSeek")].forEach(r => r.oninput = () => { if (Number.isFinite($("audio").duration)) seekTo(Number(r.value)/1000*$("audio").duration); });
+    $("seek").oninput = event => { if (Number.isFinite($("audio").duration)) seekTo(Number(event.target.value)/1000*$("audio").duration); };
     $("seek").setAttribute("aria-label", "Seek audio");
     $("download").onclick = async () => {
       const job = playingJob();
@@ -1118,10 +2340,15 @@
         const blobURL = URL.createObjectURL(await response.blob());
         const a = document.createElement("a"); a.href = blobURL; a.download = title(job).replace(/\.pdf$/i,"")+".mp3"; a.click();
         setTimeout(() => URL.revokeObjectURL(blobURL), 60000);
-      } catch (error) { playbackStatus("Download failed: "+error.message, true); }
+      } catch (error) { playbackStatus("Download failed: "+error.message, true, error); }
       finally { $("download").disabled = false; $("download").textContent = "Download"; }
     };
     $("audio").addEventListener("timeupdate", syncTimeline);
+    ["timeupdate","playing","ratechange","seeked"].forEach(name=>$("audio").addEventListener(name,()=>sampleListening()));
+    ["pause","waiting","seeking","ended","emptied"].forEach(name=>$("audio").addEventListener(name,()=>{sampleListening(true);flushListening();}));
+    setInterval(()=>flushListening(),15000);
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushListening(true);});
+    window.addEventListener("pagehide",()=>flushListening(true));
     $("audio").addEventListener("loadedmetadata", syncTimeline);
     $("audio").addEventListener("durationchange", syncTimeline);
     $("audio").addEventListener("play", syncPlayButtons);
@@ -1140,7 +2367,7 @@
     });
     $("audio").addEventListener("canplay", () => { state.buffering = false; syncPlayButtons(); });
     $("audio").addEventListener("playing", () => {
-      state.buffering = false; playbackStatus("Playing · tap for transcript"); syncPlayButtons();
+      state.buffering = false; playbackStatus("Playing · open PDF reader"); syncPlayButtons();
     });
     $("audio").addEventListener("pause", () => {
       state.buffering = false; playbackStatus($("audio").ended ? "Finished" : "Paused"); syncPlayButtons();
@@ -1154,11 +2381,781 @@
       const messages = {1:"Playback was interrupted.",2:"The audio connection failed. Tap Play to retry.",3:"The audio could not be decoded.",4:"The audio link expired or is unavailable. Refresh the library and tap Play."};
       playbackFailed(new Error(messages[$("audio").error && $("audio").error.code] || "The browser could not load this audio."));
     });
-    changeTextSize(0);
-    route();
-    loadJobs();
-    setInterval(() => loadJobs(true), 5000);
+    initializeWebApp();
+    setInterval(() => { if (webSession.user && state.currentView === "library") loadPersonalJobs(true); }, 5000);
+    setInterval(() => { if (state.currentView === "discover") loadPublicJobs(true); }, 15000);
+    setInterval(() => { if (webSession.user) refreshWebAccount(true); }, 30000);
     setInterval(checkSleepTimer, 1000);
+  </script>
+  <div id="rrSignInModal" class="rr-modal" role="dialog" aria-modal="true" aria-labelledby="rrSignInTitle">
+    <div class="rr-signin">
+      <div class="rr-signin-head">
+        <div>
+          <div class="eyebrow">Your library</div>
+          <h2 id="rrSignInTitle">Continue with Google</h2>
+        </div>
+        <button id="rrSignInClose" class="rr-x" type="button" aria-label="Close sign in">×</button>
+      </div>
+      <p>Sign in to upload papers and keep your library.</p>
+      <label class="rr-consent">
+        <input id="rrPreAuthConsent" type="checkbox">
+        <span>I agree to the current Terms of Use. I have permission to upload and process my PDFs and, when public, to distribute the PDFs, generated audio, transcripts and metadata. I understand that Free uploads are public and Pro can choose private. Making an entry private cannot revoke other people's public copies or already downloaded copies. I will not upload infringing, unlawful or otherwise unauthorized material.</span>
+      </label>
+      <button id="rrReadTerms" class="rr-terms-link" type="button">Read the full Terms of Use</button>
+      <div id="rrGoogleArea" class="rr-google">
+        <div class="rr-google-actions">
+          <button id="rrGoogleLocked" class="secondary" type="button" disabled>Continue with Google</button>
+          <div id="rrGoogleButton" hidden></div>
+          <button id="rrSignInRetry" class="secondary" type="button" hidden>Retry</button>
+        </div>
+        <p class="rr-google-note">Google shares your name, email and profile picture.</p>
+      </div>
+      <p id="rrSignInStatus" class="rr-google-note" aria-live="polite">Accept the processing and publication terms to continue.</p>
+    </div>
+  </div>
+
+  <div id="pdfReader" class="pdf-reader" role="dialog" aria-modal="true" aria-labelledby="pdfReaderTitle">
+    <header class="pdf-reader-head">
+      <button id="pdfReaderBack" class="pdf-reader-back" type="button">← Back</button>
+      <div class="pdf-reader-title">
+        <div class="pdf-reader-title-line"><h2 id="pdfReaderTitle">Paper</h2><div id="pdfReaderVisibility" hidden></div></div>
+        <div id="pdfReaderMeta" class="pdf-reader-meta">Loading paper…</div>
+      </div>
+      <div class="pdf-reader-transport">
+        <span id="pdfReaderState" class="pdf-reader-state">Preparing reader</span>
+        <button id="pdfReaderShare" type="button" aria-label="Share paper" title="Share paper" aria-controls="pdfSharePanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m-4 4 4-4 4 4M7 11H5v10h14V11h-2"/></svg></button>
+        <button id="pdfReaderPlay" type="button" aria-label="Play or pause paper">▶</button>
+      </div>
+      <div id="pdfPrivacyStatus" class="message" role="status" aria-live="polite"></div>
+      <div id="pdfSharePanel" class="share-panel" hidden><label for="pdfShareURL">Link to this paper</label><input id="pdfShareURL" type="text" readonly><div class="share-panel-actions"><button id="copyShareLink" class="secondary" type="button">Copy link</button><button id="closeSharePanel" class="secondary" type="button">Close</button></div><p id="shareStatus" role="status"></p></div>
+    </header>
+    <div class="pdf-reader-body">
+      <div id="pdfReaderNote" class="pdf-reader-note" hidden></div>
+      <div id="pdfReaderScroll" class="pdf-reader-scroll" tabindex="0">
+        <div id="pdfPages" class="pdf-pages"></div>
+      </div>
+      <button id="pdfRecenter" class="pdf-recenter" type="button" hidden>Follow audio</button>
+    </div>
+    <footer class="pdf-reader-footer">
+      <div class="pdf-timeline"><span id="pdfElapsed">0:00</span><input id="pdfSeek" type="range" min="0" max="1000" value="0" aria-label="Seek through paper audio" disabled><span id="pdfDuration">0:00</span></div>
+      <div class="pdf-playback-settings">
+        <div class="playback-setting"><label for="pdfReaderSpeed">Speed</label><select id="pdfReaderSpeed" aria-label="Playback speed"><option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select></div>
+        <div class="playback-setting sleep-setting"><div class="setting-caption"><label for="sleepTimer">Sleep timer</label><output id="sleepRemaining" aria-label="Sleep timer remaining" aria-live="off"></output></div><select id="sleepTimer" aria-label="Sleep timer"><option value="off">Sleep off</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="end">End of paper</option></select></div>
+        <div class="volume-control"><label for="pdfReaderVolume">Volume</label><output for="pdfReaderVolume" data-volume-output aria-live="off">100%</output><input id="pdfReaderVolume" data-paper-volume type="range" min="0" max="100" step="1" value="100" aria-label="Paper audio volume"></div>
+        <div class="pdf-zoom"><button id="pdfZoomOut" type="button" aria-label="Zoom out">−</button><button id="pdfZoomReset" type="button" aria-label="Fit PDF to width">Fit</button><button id="pdfZoomIn" type="button" aria-label="Zoom in">+</button></div>
+      </div>
+    </footer>
+  </div>
+
+  <script id="reading-room-behaviour">
+
+    (() => {
+      const byId = id => document.getElementById(id);
+      const playIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+      const pauseIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h4v11H3zm6 0h4v11H9z"/></svg>';
+      const loadingIcon = '<span class="spinner" aria-hidden="true"></span>';
+      const login = { focus: null, initialized: false, version: null, timer: null, deadline: 0 };
+      const zoomStorageKey = 'pdf2podcast_reader_zoom';
+      function savedReaderZoom() {
+        try {
+          const value = Number(sessionStorage.getItem(zoomStorageKey));
+          return Number.isFinite(value) && value >= .75 && value <= 2 ? value : 1;
+        } catch (_) { return 1; }
+      }
+      const reader = {
+        open: false, job: null, pdf: null, task: null, paragraphs: [], anchors: new Map(),
+        rendered: new Map(), rendering: new Map(), observer: null, opening: 0, layout: 0,
+        activeIndex: -1, following: true, zoom: savedReaderZoom(), width: 0, pending: [], running: 0,
+        frame: 0, manualSeek: -1, scrollUntil: 0, refreshTimer: null, inputTime: 0, shareLink:null, shareError:null,
+        shareRequest:0, shareBusy:false, accessReady:false,
+        activeWord:null, wordNodes:[], wordPages:new Map(), wordFrame:0
+      };
+      function lockPage() {
+        const locked = reader.open || byId('rrSignInModal').classList.contains('open') || byId('termsOverlay').classList.contains('open');
+        document.documentElement.style.overflow = locked ? 'hidden' : '';
+        document.querySelector('.shell').inert = locked;
+      }
+      function signInStatus(message, error, cause) {
+        if(error) showError(byId('rrSignInStatus'),message,{action:'sign_in',error:cause});
+        else byId('rrSignInStatus').textContent = message;
+        byId('rrSignInStatus').classList.toggle('rr-error', !!error);
+      }
+      function closeSignIn() {
+        clearTimeout(login.timer);
+        byId('rrSignInModal').classList.remove('open');
+        lockPage();
+        login.focus?.focus?.({preventScroll:true});
+      }
+      function openSignIn(message, error) {
+        login.focus = document.activeElement;
+        login.version = null;
+        byId('rrPreAuthConsent').checked = false;
+        byId('rrGoogleLocked').hidden = false;
+        byId('rrGoogleButton').hidden = true;
+        byId('rrSignInRetry').hidden = true;
+        byId('rrSignInModal').classList.add('open');
+        signInStatus(message || 'Accept the processing and publication terms to enable Google sign-in.', !!message, error);
+        lockPage();
+        byId('rrPreAuthConsent').focus({preventScroll:true});
+      }
+      window.openPdf2PodcastSignIn = openSignIn;
+      function renderGoogle() {
+        if (!byId('rrSignInModal').classList.contains('open') || !byId('rrPreAuthConsent').checked) return;
+        const clientId = webSession.config?.google_client_id;
+        if (!clientId || !state.publicTerms?.version || !state.publicTerms?.sections?.length || !window.google?.accounts?.id) {
+          if (Date.now() < login.deadline) {
+            signInStatus('Loading Google sign-in…');
+            clearTimeout(login.timer);
+            login.timer = setTimeout(renderGoogle, 200);
+          } else {
+            signInStatus(!clientId ? 'Google sign-in is unavailable. Please retry.' : 'Google sign-in could not load. Allow it in your browser settings and retry.', true);
+            byId('rrSignInRetry').hidden = false;
+          }
+          return;
+        }
+        login.version = state.publicTerms.version;
+        if (!login.initialized) {
+          google.accounts.id.initialize({client_id:clientId, callback:acceptGoogleCredential, auto_select:false, cancel_on_tap_outside:true});
+          login.initialized = true;
+        }
+        const holder = byId('rrGoogleButton');
+        byId('rrGoogleLocked').hidden = true;
+        holder.hidden = false;
+        if (!holder.dataset.rendered) {
+          google.accounts.id.renderButton(holder, {theme:'outline',size:'large',shape:'rectangular',text:'continue_with',width:Math.min(360,byId('rrGoogleArea').clientWidth)});
+          holder.dataset.rendered = 'true';
+        }
+        signInStatus('Choose your Google account to continue.');
+      }
+      window.renderPdf2PodcastGoogle = renderGoogle;
+      async function enableGoogle() {
+        if (!byId('rrPreAuthConsent').checked) {
+          clearTimeout(login.timer);
+          login.version = null;
+          byId('rrGoogleLocked').hidden = false;
+          byId('rrGoogleButton').hidden = true;
+          byId('rrSignInRetry').hidden = true;
+          signInStatus('Accept the processing and publication terms to enable Google sign-in.');
+          return;
+        }
+        login.deadline = Date.now()+12000;
+        if (!state.publicTerms?.sections?.length) {
+          try { await loadTerms(); } catch (_) {}
+        }
+        renderGoogle();
+      }
+      window.submitPdf2PodcastSignIn = result => {
+        if (!byId('rrPreAuthConsent').checked || !login.version || login.version !== state.publicTerms?.version) {
+          openSignIn('Review and accept the current Terms before signing in.');
+          return;
+        }
+        if (!result?.credential) { signInStatus('Google did not return a sign-in credential. Please retry.',true); return; }
+        signInStatus('Signing you in…');
+        const form = document.createElement('form');
+        form.method = 'POST'; form.action = '/api/web/auth/google/redirect'; form.hidden = true;
+        const fields = {credential:result.credential,terms_accepted:'true',terms_version:login.version};
+        if(urlImport.url)fields.import_url=urlImport.url;
+        try { sessionStorage.setItem('pdf2podcast_auth_return',location.pathname+location.search+location.hash); } catch (_) {}
+        Object.entries(fields).forEach(([name,value]) => { const input=document.createElement('input'); input.type='hidden'; input.name=name; input.value=value; form.appendChild(input); });
+        document.body.appendChild(form); form.submit();
+      };
+      byId('rrSignInClose').onclick = closeSignIn;
+      byId('rrPreAuthConsent').onchange = enableGoogle;
+      byId('rrSignInRetry').onclick = enableGoogle;
+      byId('rrSignInModal').onclick = event => { if(event.target === byId('rrSignInModal')) closeSignIn(); };
+      byId('rrReadTerms').onclick = () => { showTerms(false); lockPage(); byId('termsClose').focus({preventScroll:true}); };
+      const termsClose = byId('termsClose').onclick;
+      byId('termsClose').onclick = () => { termsClose(); lockPage(); if (byId('rrSignInModal').classList.contains('open')) byId('rrReadTerms').focus({preventScroll:true}); };
+
+      const knownJobs = () => [...state.jobDetails.values(),...state.personalJobs,...state.publicJobs,...state.jobs];
+      function setNote(message, error, context={}) {
+        const note=byId('pdfReaderNote'),key=JSON.stringify([message,!!error,reader.job?.job_id,context.action]);
+        if(note.dataset.messageKey===key)return;
+        note.dataset.messageKey=key;
+        if(error) showError(note,message,{job:reader.job,action:'read_pdf',...context});
+        else note.textContent=message || '';
+        note.hidden=!message; note.setAttribute('role',error?'alert':'status');
+      }
+      function normalizeAnchors(anchors) {
+        return (Array.isArray(anchors) ? anchors : []).flatMap(anchor =>
+          (Array.isArray(anchor?.rects) ? anchor.rects : []).flatMap(rect => {
+            if (!Number.isInteger(anchor.page) || anchor.page < 1 || !Array.isArray(rect) || rect.length !== 4 || !rect.every(Number.isFinite) || rect[2] <= 0 || rect[3] <= 0) return [];
+            return [{page:anchor.page,x:rect[0],y:rect[1],width:rect[2],height:rect[3]}];
+          }));
+      }
+      function normalizeMap(map) {
+        if (map.coordinate_space !== 'pdf_user_space' || !Array.isArray(map.paragraphs)) throw new Error('Unsupported paragraph location map.');
+        const seen = new Set();
+        const paragraphs = map.paragraphs.filter(item => Number.isFinite(item.start) && item.start >= 0).map(item => {
+          const anchors = normalizeAnchors(item.anchors);
+          const kind = item.kind === 'heading' ? 'heading' : 'paragraph';
+          const begin = kind !== 'heading' && Number.isFinite(item.summary_start) ? Math.min(item.start,item.summary_start) : item.start;
+          // Only supplied absolute WordBoundary intervals are usable. Legacy maps
+          // remain paragraph-only; never infer word timing from text or duration.
+          const words = (Array.isArray(item.words) ? item.words : []).filter(word =>
+            word && Number.isFinite(word.start) && Number.isFinite(word.end) && word.start >= item.start && word.end > word.start
+          ).slice().sort((a,b) => a.start-b.start);
+          return {...item,kind,anchors,begin,words};
+        }).sort((a,b) => a.start-b.start);
+        paragraphs.forEach((item,index) => {
+          item.index = index;
+          item.end = Number.isFinite(item.end) ? item.end : (paragraphs[index+1]?.begin ?? Infinity);
+          item.marker = item.anchors.length && !seen.has(item.start) ? item.anchors[0] : null;
+          if (item.marker) seen.add(item.start);
+        });
+        return paragraphs;
+      }
+      function indexAnchors() {
+        reader.anchors.clear();
+        reader.paragraphs.forEach(paragraph => paragraph.anchors.forEach(anchor => {
+          if (!reader.anchors.has(anchor.page)) reader.anchors.set(anchor.page,[]);
+          reader.anchors.get(anchor.page).push({paragraph,anchor});
+        }));
+      }
+      async function fetchJSON(path) {
+        const response = await request(path,{signal:AbortSignal.timeout(45000),cache:"no-store"});
+        return response.json();
+      }
+      async function pdfLibrary() {
+        if (window.pdf2PodcastPDFJS) return window.pdf2PodcastPDFJS;
+        return new Promise((resolve,reject) => {
+          const handler = () => { clearTimeout(timer); resolve(window.pdf2PodcastPDFJS); };
+          const timer = setTimeout(() => { window.removeEventListener('pdf2podcast-pdfjs-ready',handler); reject(new Error('The PDF viewer could not load. Check your connection and reopen this paper.')); },12000);
+          window.addEventListener('pdf2podcast-pdfjs-ready',handler,{once:true});
+        });
+      }
+      function releasePages() {
+        clearActiveWord();
+        cancelAnimationFrame(reader.wordFrame); reader.wordFrame=0;
+        reader.layout++;
+        reader.observer?.disconnect();
+        reader.rendering.forEach(entry => {
+          try { entry.task?.cancel(); } catch (_) {}
+          try { entry.textLayer?.cancel(); } catch (_) {}
+          if(entry.canvas){entry.canvas.width=0;entry.canvas.height=0;}
+          entry.resolve();
+        });
+        reader.pending.splice(0);
+        reader.rendered.forEach(entry=>{entry.canvas.width=0;entry.canvas.height=0;});
+        reader.rendering.clear(); reader.rendered.clear();
+        // A cancelled PDF/text request may settle late or never settle. It must
+        // not occupy a render slot belonging to the next zoom level or document.
+        reader.running=0;
+      }
+      function closeReader() {
+        reader.open = false; reader.opening++;
+        reader.accessReady = false; clearReaderShare();
+        delete byId("pdfReader").dataset.job;
+        releasePages();
+        clearInterval(reader.refreshTimer); reader.refreshTimer = null;
+        const oldTask=reader.task,oldWorker=reader.worker;
+        if(oldTask){
+          const timeout=setTimeout(()=>oldWorker?.destroy(),2000);
+          Promise.resolve().then(()=>oldTask.destroy()).catch(()=>{}).finally(()=>{clearTimeout(timeout);oldWorker?.destroy();});
+        } else oldWorker?.destroy();
+        reader.worker=null;
+        reader.task = null; reader.pdf = null;
+        byId('pdfReader').classList.remove('open');
+        byId('pdfSharePanel').hidden=true;byId('pdfReaderShare').setAttribute('aria-expanded','false');
+        document.body.classList.remove('reader-open');
+        byId('pdfPages').replaceChildren();
+        lockPage();
+        document.title = 'Pdf2Podcast';
+      }
+      function updateReaderMeta() {
+        if (!reader.open) return;
+        byId('pdfReaderTitle').textContent = title(reader.job);
+        document.title = title(reader.job)+' · Pdf2Podcast';
+        const count = reader.pdf?.numPages;
+        byId('pdfReaderMeta').textContent = count ? count+' pages · '+reader.paragraphs.filter(item=>item.marker).length+' playable paragraphs' : 'Opening PDF…';
+        byId('pdfReaderPlay').disabled = !reader.accessReady || !complete(reader.job);
+        syncReaderPrivacy();
+        if(failed(reader.job)) setNote('Audio conversion failed: '+(reader.job.error || status(reader.job)),true,{action:'convert_pdf'});
+        syncReader();
+      }
+      function clearReaderShare() {
+        reader.shareRequest++; reader.shareLink=null; reader.shareError=null; reader.shareBusy=false;
+        closeSharePanel(); byId('pdfShareURL').value=''; byId('shareStatus').textContent='';
+      }
+      function syncReaderPrivacy() {
+        if (!reader.open || !reader.job) return;
+        const job=reader.job, pending=state.visibilityPending.has(job.job_id);
+        const owner=reader.accessReady && !!webSession.user && job.is_owner === true;
+        const control=byId('pdfReaderVisibility'), markup=owner ? jobVisibilityControl(job) : '';
+        if(control.dataset.markup !== markup){control.innerHTML=markup;control.dataset.markup=markup;}
+        control.hidden=!owner;
+        const privatePaper=job.visibility === 'private', publicPaper=reader.accessReady && job.visibility === 'public';
+        const share=byId('pdfReaderShare');
+        share.disabled=!publicPaper || pending || reader.shareBusy;
+        share.setAttribute('aria-busy',String(reader.shareBusy));
+        share.title=privatePaper ? 'Private papers cannot be shared. Change your entry to Public first if you have permission to distribute it.'
+          : pending ? 'Saving visibility...' : !reader.accessReady ? 'Checking access...' : reader.shareBusy ? 'Preparing share link...' : 'Share public paper';
+        share.setAttribute('aria-label',privatePaper ? 'Sharing disabled for this private paper' : 'Share public paper');
+      }
+      async function prepareReaderShare() {
+        const job=reader.job;
+        if(!reader.open || !reader.accessReady || job?.visibility !== 'public' || state.visibilityPending.has(job.job_id)) return;
+        const opening=reader.opening, attempt=++reader.shareRequest, generation=webSession.sessionGeneration;
+        const valid=()=>reader.open && opening===reader.opening && attempt===reader.shareRequest &&
+          generation===webSession.sessionGeneration && reader.job?.visibility==='public' && !state.visibilityPending.has(job.job_id);
+        reader.shareBusy=true; reader.shareError=null; syncReaderPrivacy();
+        try {
+          const response=await request('/api/public/jobs/'+encodeURIComponent(job.job_id)+'/share',{cache:'no-store'});
+          const link=await response.json();
+          if(valid())reader.shareLink=link;
+        } catch(error) { if(valid())reader.shareError=error; }
+        finally {
+          if(reader.open && opening===reader.opening && attempt===reader.shareRequest){reader.shareBusy=false;syncReaderPrivacy();}
+        }
+      }
+      window.syncPdf2PodcastPrivacy=()=>{
+        if(!reader.open)return;
+        if(state.visibilityPending.has(reader.job?.job_id))clearReaderShare();
+        syncReaderPrivacy();
+        if(!reader.shareLink && !reader.shareBusy && !reader.shareError)prepareReaderShare();
+      };
+      window.applyPdf2PodcastVisibility=job=>{
+        if(!reader.open || reader.job?.job_id!==job.job_id)return;
+        const restore={scrollTop:byId('pdfReaderScroll').scrollTop,following:reader.following};
+        closeReader();
+        openReader(job,false,restore);
+      };
+      window.resetPdf2PodcastPrivacy=()=>{
+        if(!reader.open)return;
+        const job=reader.job, restore={scrollTop:byId('pdfReaderScroll').scrollTop,following:reader.following};
+        closeReader();
+        if(job?.visibility==='public')openReader({...job,is_owner:false,can_change_visibility:false},false,restore);
+      };
+      async function openReader(job, pushHistory, restore = null) {
+        if (!job?.job_id) return;
+        if (reader.open && reader.job?.job_id === job.job_id) return;
+        closeReader();
+        const opening = ++reader.opening;
+        reader.open = true; reader.job = job; reader.paragraphs = []; reader.activeIndex = -1;
+        reader.following = restore?.following ?? true; reader.manualSeek = -1; reader.inputTime = 0; reader.shareLink=null; reader.shareError=null;
+        reader.accessReady=false; byId("pdfReader").dataset.job=job.job_id; byId("pdfPrivacyStatus").textContent="";
+        byId('pdfReader').classList.add('open'); document.body.classList.add('reader-open');
+        byId('pdfReaderTitle').textContent = title(job); document.title = title(job)+' · Pdf2Podcast';
+        byId('pdfReaderPlay').disabled = true; byId('pdfRecenter').hidden = true;
+        byId('pdfReaderState').textContent = 'Opening PDF…'; setNote(''); updateReaderMeta(); lockPage();
+        byId('pdfPages').innerHTML='<div class="empty"><span class="spinner" aria-hidden="true"></span> Opening PDF...</div>';
+        byId('pdfReaderBack').focus({preventScroll:true});
+        if (pushHistory) history.pushState({pdfReader:true},'', '#read/'+encodeURIComponent(job.job_id));
+        const base = '/api/audio/jobs/'+encodeURIComponent(job.job_id);
+        const current = () => reader.open && reader.opening === opening;
+        syncReaderPrivacy();
+        const loadDetails = async () => {
+          const revision=visibilityVersion(job.job_id), generation=webSession.sessionGeneration;
+          const payload=await fetchJSON(base), fresh=payload?.job || payload;
+          if(!current() || revision!==visibilityVersion(job.job_id) || generation!==webSession.sessionGeneration)return false;
+          if(fresh?.job_id!==job.job_id)throw new Error('Paper details could not be loaded.');
+          reader.job=fresh; reader.accessReady=true; rememberJob(fresh); updateReaderMeta();
+          if(!reader.shareLink && !reader.shareBusy)prepareReaderShare();
+          return true;
+        };
+        const loadMap = async () => {
+          try {
+            const map = await fetchJSON(base+'/read-along');
+            if (!current()) return;
+            clearActiveWord();
+            reader.paragraphs = normalizeMap(map); indexAnchors();
+            reader.rendered.forEach(({viewport,layer},number) => renderAnchors(number,viewport,layer));
+            updateReaderMeta();
+          } catch (error) {
+            if(current()) {
+              if(failed(reader.job)) updateReaderMeta();
+              else setNote(active(reader.job)?'Audio is being prepared. You can read the PDF while it processes.':'Paragraph controls are unavailable for this recording. You can still read and copy the PDF text.',!active(reader.job),{error,action:'load_paragraphs'});
+            }
+          }
+        };
+        loadMap();
+        loadDetails().catch(error=>{
+          if(current()){
+            reader.accessReady=false; syncReaderPrivacy();
+            byId('pdfPrivacyHelp').textContent='Paper access could not be checked. Reopen this paper to retry.';
+            setNote('Could not load paper details: '+error.message,true,{error,action:'load_paper_details'});
+          }
+        });
+        try {
+          const pdfjs = await pdfLibrary(); if (!current()) return;
+          const worker=new pdfjs.PDFWorker({name:'pdf2podcast-reader-'+opening});
+          reader.worker=worker;
+          const task = pdfjs.getDocument({url:base+'/pdf',worker,withCredentials:true,isEvalSupported:false});
+          reader.task = task;
+          const pdf = await task.promise;
+          if (!current()) { task.destroy().catch(()=>{}); return; }
+          reader.pdf = pdf;
+          const page = await pdf.getPage(1);
+          if (!current()) return;
+          reader.ratio = page.getViewport({scale:1}).width/page.getViewport({scale:1}).height;
+          layoutPages(); updateReaderMeta();
+          if(restore){reader.scrollUntil=performance.now()+350;byId("pdfReaderScroll").scrollTo({top:restore.scrollTop,behavior:"instant"});}
+        } catch (error) { if (current()) { setNote('Could not open this PDF: '+error.message,true,{error,action:'open_pdf'}); byId('pdfReaderState').textContent='PDF unavailable'; } }
+        if (!current()) return;
+        reader.refreshTimer = setInterval(async () => {
+          if (!current() || (reader.accessReady && complete(reader.job)) || state.visibilityPending.has(job.job_id)) return;
+          try {
+            const loaded=await loadDetails();
+            if (loaded && current() && complete(reader.job)) { setNote(''); loadMap(); }
+          } catch (_) {}
+        },10000);
+      }
+      window.openPdf2PodcastReader = openReader;
+      function syncRoute() {
+        const match = location.hash.match(/^#(?:read|podcast)\/(pdf-[a-f0-9]{16})$/);
+        if (!match) { if(reader.open) closeReader(); return; }
+        const id = match[1];
+        if (reader.open && reader.job?.job_id === id) return;
+        openReader(knownJobs().find(job=>job.job_id===id) || {job_id:id,title:'Paper'},false);
+      }
+      window.syncPdf2PodcastRoute = syncRoute;
+      function pageWidth() {
+        const scroll = byId('pdfReaderScroll'), style = getComputedStyle(scroll);
+        return Math.max(120,Math.min(920,scroll.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight)))*reader.zoom;
+      }
+      function layoutPages() {
+        if (!reader.open || !reader.pdf) return;
+        const scroll = byId('pdfReaderScroll');
+        const fraction = scroll.scrollHeight ? scroll.scrollTop/scroll.scrollHeight : 0;
+        reader.width = pageWidth(); releasePages();
+        const pages = byId('pdfPages'); pages.style.width=reader.width+'px'; pages.replaceChildren();
+        const opening=reader.opening,layout=reader.layout;
+        reader.observer = new IntersectionObserver(entries => {
+          if(!reader.open || opening!==reader.opening || layout!==reader.layout)return;
+          entries.filter(entry=>entry.isIntersecting).forEach(entry=>queuePage(Number(entry.target.dataset.page)));
+          trimPages();
+        },{root:scroll,rootMargin:'650px 0px'});
+        for(let number=1;number<=reader.pdf.numPages;number++) {
+          const shell=document.createElement('div'); shell.className='pdf-page'; shell.dataset.page=number;
+          shell.style.width=reader.width+'px'; shell.style.height=(reader.width/reader.ratio)+'px'; shell.style.aspectRatio='auto';
+          shell.setAttribute('aria-label','Page '+number);
+          shell.innerHTML='<span class="pdf-page-loading">Page '+number+'</span><span class="pdf-page-label">'+number+'</span>';
+          pages.appendChild(shell); reader.observer.observe(shell);
+        }
+        reader.scrollUntil=performance.now()+350;
+        scroll.scrollTo({top:fraction*scroll.scrollHeight,behavior:'instant'});
+        byId('pdfZoomReset').textContent=reader.zoom===1 ? 'Fit' : Math.round(reader.zoom*100)+'%';
+        byId('pdfZoomOut').disabled=reader.zoom<=0.75; byId('pdfZoomIn').disabled=reader.zoom>=2;
+        queuePage(1);
+      }
+      function queuePage(number) {
+        if (!reader.open || !reader.pdf || number<1 || number>reader.pdf.numPages) return Promise.resolve();
+        if (reader.rendered.has(number)) return Promise.resolve(reader.rendered.get(number));
+        if (reader.rendering.has(number)) return reader.rendering.get(number).promise;
+        const entry={number,opening:reader.opening,layout:reader.layout,pdf:reader.pdf,task:null,textLayer:null,canvas:null};
+        entry.promise=new Promise(resolve=>entry.resolve=resolve);
+        reader.rendering.set(number,entry); reader.pending.push(entry); drainPages(); return entry.promise;
+      }
+      function drainPages() {
+        while(reader.running<2 && reader.pending.length) {
+          const entry=reader.pending.shift();
+          if(!reader.open || entry.opening!==reader.opening || entry.layout!==reader.layout){entry.resolve();continue;}
+          reader.running++;
+          renderPage(entry).catch(error=>{
+            if (entry.opening!==reader.opening || entry.layout!==reader.layout || error.name==='RenderingCancelledException') return;
+            setNote('Page '+entry.number+' could not load: '+error.message,true,{error,action:'render_pdf',page:entry.number});
+            const shell=byId('pdfPages').querySelector('[data-page="'+entry.number+'"]');
+            if(shell) { const button=document.createElement('button'); button.className='pdf-page-loading'; button.textContent='Page could not load. Retry'; button.onclick=()=>{ button.remove(); queuePage(entry.number); }; shell.appendChild(button); }
+          }).finally(()=>{
+            if(entry.opening!==reader.opening || entry.layout!==reader.layout){entry.resolve();return;}
+            reader.running=Math.max(0,reader.running-1);
+            if(reader.rendering.get(entry.number)===entry)reader.rendering.delete(entry.number);
+            entry.resolve(reader.rendered.get(entry.number));drainPages();
+          });
+        }
+      }
+      async function renderPage(entry) {
+        const valid=()=>reader.open && entry.opening===reader.opening && entry.layout===reader.layout && entry.pdf===reader.pdf;
+        if(!valid()) return;
+        const page=await entry.pdf.getPage(entry.number); if(!valid()) return;
+        const shell=byId('pdfPages').querySelector('[data-page="'+entry.number+'"]'); if(!shell) return;
+        const viewport=page.getViewport({scale:reader.width/page.getViewport({scale:1}).width});
+        shell.style.height=viewport.height+'px';
+        const canvas=document.createElement('canvas'), dpr=Math.min(devicePixelRatio||1,2);
+        entry.canvas=canvas;
+        canvas.width=Math.ceil(viewport.width*dpr); canvas.height=Math.ceil(viewport.height*dpr);
+        shell.appendChild(canvas);
+        entry.task=page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport,transform:dpr!==1?[dpr,0,0,dpr,0,0]:null});
+        await entry.task.promise; if(!valid()) return;
+        const text=document.createElement('div'); text.className='textLayer'; text.style.setProperty('--scale-factor',viewport.scale);
+        shell.appendChild(text);
+        try {
+          const layer=new window.pdf2PodcastPDFJS.TextLayer({textContentSource:page.streamTextContent(),container:text,viewport});
+          entry.textLayer=layer;
+          await layer.render();
+        } catch (_) {}
+        if(!valid()) return;
+        const layer=document.createElement('div'); layer.className='pdf-anchor-layer'; shell.appendChild(layer);
+        renderAnchors(entry.number,viewport,layer);
+        shell.querySelector('.pdf-page-loading')?.remove();
+        reader.rendered.set(entry.number,{shell,viewport,page,canvas,layer}); syncReader(); trimPages();
+      }
+      function renderAnchors(number,viewport,layer) {
+        clearActiveWord();
+        layer.replaceChildren();
+        const occupied=[];
+        (reader.anchors.get(number)||[]).forEach(({paragraph,anchor})=>{
+          const rect=viewport.convertToViewportRectangle([anchor.x,anchor.y,anchor.x+anchor.width,anchor.y+anchor.height]);
+          const left=Math.min(rect[0],rect[2]),top=Math.min(rect[1],rect[3]),width=Math.abs(rect[2]-rect[0]),height=Math.abs(rect[3]-rect[1]);
+          const highlight=document.createElement('div'); highlight.className='pdf-highlight'; highlight.dataset.paragraph=paragraph.index;
+          Object.assign(highlight.style,{left:left+'px',top:top+'px',width:width+'px',height:height+'px'}); layer.appendChild(highlight);
+          if(anchor!==paragraph.marker) return;
+          const size=matchMedia('(max-width:800px)').matches?23:25;
+          let x=Math.max(1,left-size-4),y=Math.max(1,top+(height-size)/2);
+          while(occupied.some(p=>Math.abs(p.x-x)<size+2 && Math.abs(p.y-y)<size+2) && x-size-3>=1) x-=size+3;
+          while(occupied.some(p=>Math.abs(p.x-x)<size+2 && Math.abs(p.y-y)<size+2)) y+=size+3;
+          occupied.push({x,y});
+          const button=document.createElement('button'); button.type='button'; button.className='pdf-marker'; button.dataset.paragraph=paragraph.index;
+          Object.assign(button.style,{left:x+'px',top:y+'px'}); button.title=paragraph.title || 'Read this '+paragraph.kind; button.innerHTML=playIcon;
+          button.onclick=event=>{event.stopPropagation();playParagraph(paragraph);}; layer.appendChild(button);
+        });
+        syncReader();
+      }
+      function trimPages() {
+        if(reader.rendered.size<=7) return;
+        const rect=byId('pdfReaderScroll').getBoundingClientRect();
+        for(const [number,entry] of reader.rendered) {
+          const bounds=entry.shell.getBoundingClientRect();
+          if(bounds.bottom>=rect.top-1400 && bounds.top<=rect.bottom+1400) continue;
+          clearActiveWord();
+          entry.canvas.width=0; entry.canvas.height=0;
+          entry.shell.querySelectorAll('canvas,.textLayer,.pdf-anchor-layer').forEach(node=>node.remove());
+          reader.rendered.delete(number);
+          if(reader.rendered.size<=7) break;
+        }
+        syncActiveWord();
+      }
+      function readerAudio() { return state.playingJobID===reader.job?.job_id; }
+      function playParagraph(paragraph) {
+        if(!reader.accessReady || !complete(reader.job)) return;
+        reader.manualSeek=paragraph.index;
+        if(readerAudio() && reader.activeIndex===paragraph.index) togglePlay();
+        else selectAndPlay(reader.job,paragraph.start);
+        syncReader();
+      }
+      function activeParagraph() {
+        if(!readerAudio()) return -1;
+        const time=state.pendingSeek ?? byId('audio').currentTime;
+        for(let index=reader.paragraphs.length-1;index>=0;index--) {
+          const item=reader.paragraphs[index];
+          if(time>=item.begin && time<item.end) return index;
+        }
+        return -1;
+      }
+      function paintButton(button,kind,label) {
+        if(button.dataset.kind!==kind) { button.dataset.kind=kind; button.innerHTML=kind==='loading'?loadingIcon:kind==='pause'?pauseIcon:playIcon; }
+        button.setAttribute('aria-label',label); button.setAttribute('aria-busy',String(kind==='loading'));
+      }
+      function clearActiveWord() {
+        reader.wordNodes.forEach(node=>node.remove());
+        reader.wordNodes=[]; reader.wordPages.clear(); reader.activeWord=null;
+      }
+      function syncActiveWord() {
+        const audio=byId('audio'), paragraph=reader.paragraphs[reader.activeIndex];
+        const time=state.pendingSeek ?? audio.currentTime;
+        let word=null;
+        if(reader.open && readerAudio() && !audio.seeking && paragraph && time>=paragraph.start && time<paragraph.end) {
+          const words=paragraph.words;
+          let low=0,high=words.length;
+          while(low<high) { const mid=(low+high)>>>1; if(words[mid].start<=time)low=mid+1;else high=mid; }
+          const candidate=words[low-1];
+          if(candidate && time<candidate.end)word=candidate;
+        }
+        if(word!==reader.activeWord) { clearActiveWord(); reader.activeWord=word; }
+        if(!word)return;
+        // Cache only the active word's geometry and DOM, including newly rendered
+        // pages. PDF.js converts native bottom-left coordinates at the current zoom.
+        for(const [number,entry] of reader.rendered) {
+          if(reader.wordPages.get(number)===entry.layer)continue;
+          normalizeAnchors(word.anchors).filter(anchor=>anchor.page===number).forEach(anchor=>{
+            const rect=entry.viewport.convertToViewportRectangle([anchor.x,anchor.y,anchor.x+anchor.width,anchor.y+anchor.height]);
+            const node=document.createElement('div'); node.className='pdf-word-highlight'; node.setAttribute('aria-hidden','true');
+            Object.assign(node.style,{left:Math.min(rect[0],rect[2])+'px',top:Math.min(rect[1],rect[3])+'px',width:Math.abs(rect[2]-rect[0])+'px',height:Math.abs(rect[3]-rect[1])+'px'});
+            entry.layer.appendChild(node); reader.wordNodes.push(node);
+          });
+          reader.wordPages.set(number,entry.layer);
+        }
+      }
+      function trackWords() {
+        if(reader.wordFrame || !reader.open || !readerAudio() || byId('audio').paused || byId('audio').ended || !reader.paragraphs.some(item=>item.words.length))return;
+        reader.wordFrame=requestAnimationFrame(()=>{
+          reader.wordFrame=0;
+          if(!reader.open)return;
+          if(activeParagraph()!==reader.activeIndex)syncReader();
+          else syncActiveWord();
+          trackWords();
+        });
+      }
+      function syncReader() {
+        if(!reader.open) return;
+        const audio=byId('audio'), relevant=readerAudio(), next=activeParagraph(), changed=next!==reader.activeIndex;
+        reader.activeIndex=next;
+        const buffering=relevant && !audio.paused && (state.buffering || audio.readyState<3),playing=relevant && !audio.paused;
+        byId('pdfPages').querySelectorAll('.pdf-highlight').forEach(node=>node.classList.toggle('active',Number(node.dataset.paragraph)===next));
+        byId('pdfPages').querySelectorAll('.pdf-marker').forEach(node=>{
+          const current=Number(node.dataset.paragraph)===next;
+          const kind=reader.paragraphs[Number(node.dataset.paragraph)]?.kind || 'paragraph';
+          node.classList.toggle('active',current);
+          paintButton(node,current&&buffering?'loading':current&&playing?'pause':'play',current&&playing?'Pause '+kind:current?'Resume '+kind:'Read '+kind+' '+(Number(node.dataset.paragraph)+1));
+        });
+        paintButton(byId('pdfReaderPlay'),buffering?'loading':playing?'pause':'play',playing?'Pause audio':'Play audio');
+        byId('pdfReaderState').textContent=active(reader.job)?'Audio '+Math.round(pct(reader.job))+'%':failed(reader.job)?'Audio failed':buffering?'Buffering…':relevant?(playing?'Playing':'Paused'):'Choose a paragraph';
+        const duration=relevant&&Number.isFinite(audio.duration)?audio.duration:Number(reader.job.duration_seconds)||0;
+        const time=relevant?(state.pendingSeek??audio.currentTime):0;
+        byId('pdfElapsed').textContent=fmtTime(time); byId('pdfDuration').textContent=fmtTime(duration);
+        byId('pdfSeek').disabled=!relevant || !duration;
+        if(document.activeElement!==byId('pdfSeek')) byId('pdfSeek').value=duration?Math.round(time/duration*1000):0;
+        byId('pdfReaderSpeed').value=String(speeds[state.speedIndex]);
+        byId('pdfRecenter').hidden=reader.following || next<0;
+        syncActiveWord(); trackWords();
+        if(changed && next>=0 && reader.following && reader.manualSeek!==next) centerParagraph(next);
+        if(next===reader.manualSeek) reader.manualSeek=-1;
+      }
+      function scheduleSync() { if(!reader.frame) reader.frame=requestAnimationFrame(()=>{reader.frame=0;syncReader();}); }
+      async function centerParagraph(index) {
+        const paragraph=reader.paragraphs[index],anchor=paragraph?.marker || paragraph?.anchors[0];
+        if(!anchor) return;
+        const generation=reader.opening,layout=reader.layout;
+        await queuePage(anchor.page);
+        if(!reader.open || generation!==reader.opening || layout!==reader.layout || !reader.following || index!==reader.activeIndex) return;
+        const target=byId('pdfPages').querySelector('.pdf-highlight[data-paragraph="'+index+'"]'); if(!target) return;
+        const scroll=byId('pdfReaderScroll'),a=target.getBoundingClientRect(),b=scroll.getBoundingClientRect();
+        reader.scrollUntil=performance.now()+750;
+        scroll.scrollTo({top:scroll.scrollTop+a.top-b.top-scroll.clientHeight*0.37,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth'});
+      }
+      function stopFollowing() {
+        reader.inputTime=performance.now(); reader.following=false; reader.scrollUntil=0;
+        byId('pdfRecenter').hidden=reader.activeIndex<0;
+      }
+      byId('pdfReaderBack').onclick=()=>{
+        if(history.state?.pdfReader) history.back();
+        else { history.replaceState(null,'',location.pathname+location.search); closeReader(); }
+      };
+      function closeSharePanel() {
+        byId('pdfSharePanel').hidden=true;byId('pdfReaderShare').setAttribute('aria-expanded','false');
+      }
+      async function recordPaperShare(link) {
+        if(!reader.open || reader.job?.visibility!=='public' || state.visibilityPending.has(reader.job.job_id) || reader.shareLink?.code!==link.code)return;
+        try {
+          const response=await request('/api/public/shares/'+encodeURIComponent(link.code)+'/share',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          const stats=await response.json();
+          if(reader.shareLink?.code===link.code)reader.shareLink={...reader.shareLink,...stats};
+        } catch (_) { /* A metrics failure must not undo a successful share. */ }
+      }
+      async function copyPaperLink() {
+        const input=byId('pdfShareURL'),link=reader.shareLink,opening=reader.opening;
+        if(!reader.accessReady || reader.job?.visibility!=='public' || !link || state.visibilityPending.has(reader.job.job_id))return;
+        const copied=await copyText(input.value,byId('pdfSharePanel'));
+        if(!reader.open || opening!==reader.opening || reader.shareLink?.code!==link.code || reader.job?.visibility!=='public')return;
+        if(copied)await recordPaperShare(link);
+        if(!reader.open || opening!==reader.opening || reader.shareLink?.code!==link.code)return;
+        byId('shareStatus').textContent=copied?'Link copied.':'Select and copy the link above.';
+        if(!copied){input.focus();input.select();}
+      }
+      byId('pdfReaderShare').onclick=async()=>{
+        if(!reader.accessReady || reader.job?.visibility!=='public' || state.visibilityPending.has(reader.job.job_id))return;
+        if(!byId('pdfSharePanel').hidden){closeSharePanel();return;}
+        const job=reader.job,share=reader.shareLink,opening=reader.opening;
+        if(!share){setNote('Could not prepare a share link. Reopen the paper and try again.',true,{error:reader.shareError,action:'share_paper'});return;}
+        const link=new URL(share.url,location.origin).href;
+        if(navigator.share){
+          try{await navigator.share({title:title(job),url:link});await recordPaperShare(share);return;}
+          catch(error){if(error.name==='AbortError')return;}
+        }
+        if(!reader.open || opening!==reader.opening || reader.job?.job_id!==job.job_id || reader.job.visibility!=='public' || reader.shareLink?.code!==share.code || state.visibilityPending.has(job.job_id))return;
+        byId('pdfShareURL').value=link;byId('shareStatus').textContent='';byId('pdfSharePanel').hidden=false;
+        byId('pdfReaderShare').setAttribute('aria-expanded','true');
+        await copyPaperLink();
+      };
+      byId('copyShareLink').onclick=copyPaperLink;
+      byId('closeSharePanel').onclick=()=>{closeSharePanel();byId('pdfReaderShare').focus();};
+      byId('pdfShareURL').onclick=event=>event.target.select();
+      byId('pdfReaderPlay').onclick=()=>{
+        if(!reader.accessReady)return;
+        if(readerAudio()) togglePlay();
+        else if(complete(reader.job)) selectAndPlay(reader.job,reader.paragraphs[0]?.start??0);
+        syncReader();
+      };
+      byId('pdfRecenter').onclick=()=>{reader.following=true;syncReader();if(reader.activeIndex>=0)centerParagraph(reader.activeIndex);};
+      byId('pdfReaderSpeed').onchange=event=>setPlaybackSpeed(event.target.value);
+      byId('sleepTimer').onchange=setSleepTimer;
+      byId('pdfSeek').oninput=()=>{if(readerAudio()&&Number.isFinite(byId('audio').duration)){seekTo(Number(byId('pdfSeek').value)/1000*byId('audio').duration);syncReader();}};
+      const setZoom=value=>{
+        reader.zoom=Math.max(.75,Math.min(2,Math.round(value*100)/100));
+        try { sessionStorage.setItem(zoomStorageKey,String(reader.zoom)); } catch (_) {}
+        layoutPages();
+      };
+      const zoom=amount=>setZoom(reader.zoom+amount);
+      byId('pdfZoomOut').onclick=()=>zoom(-.25); byId('pdfZoomIn').onclick=()=>zoom(.25);
+      byId('pdfZoomReset').onclick=()=>setZoom(1);
+      ['wheel','touchmove'].forEach(name=>byId('pdfReaderScroll').addEventListener(name,stopFollowing,{passive:true}));
+      byId('pdfReaderScroll').addEventListener('pointerdown',event=>{if(event.target===byId('pdfReaderScroll'))stopFollowing();},{passive:true});
+      byId('pdfReaderScroll').addEventListener('keydown',event=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))stopFollowing();});
+      byId('pdfReaderScroll').addEventListener('scroll',()=>{
+        if(performance.now()>=reader.scrollUntil && performance.now()-reader.inputTime<1000) stopFollowing();
+      },{passive:true});
+      let resizeTimer;
+      new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(reader.open&&reader.pdf&&Math.abs(pageWidth()-reader.width)>2)layoutPages();},180);}).observe(byId('pdfReaderScroll'));
+      ['play','pause','waiting','playing','seeking','seeked','canplay','timeupdate','loadedmetadata','error','ratechange','ended'].forEach(name=>byId('audio').addEventListener(name,scheduleSync));
+      ['seeking','emptied','loadstart'].forEach(name=>byId('audio').addEventListener(name,()=>{clearActiveWord();scheduleSync();}));
+      document.addEventListener('keydown',event=>{
+        const terms=byId('termsOverlay'),signin=byId('rrSignInModal');
+        const top=terms.classList.contains('open')?terms:signin.classList.contains('open')?signin:byId('uploadOverlay').classList.contains('open')?byId('uploadOverlay'):reader.open?byId('pdfReader'):null;
+        if(!top)return;
+        if(event.key==='Escape') {
+          if(!byId('pdfSharePanel').hidden){closeSharePanel();byId('pdfReaderShare').focus();return;}
+          if(top===terms && !webSession.termsRequired) byId('termsClose').click();
+          else if(top===signin)closeSignIn();
+          else if(top===byId('pdfReader'))byId('pdfReaderBack').click();
+          return;
+        }
+        if(event.key!=='Tab')return;
+        const nodes=[...top.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(node=>node.getClientRects().length);
+        const first=nodes[0],last=nodes[nodes.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+      });
+      syncRoute();
+    })();
+  </script>
+  <script id="paper-volume-behaviour">
+    (() => {
+      const audio = document.getElementById('audio');
+      const controls = [...document.querySelectorAll('.volume-control')];
+      const storageKey = 'pdf2podcast_volume';
+      function syncVolume() {
+        const percent = Math.round((audio.muted ? 0 : audio.volume) * 100);
+        controls.forEach(control => {
+          const slider = control.querySelector('[data-paper-volume]');
+          slider.value = String(percent);
+          slider.setAttribute('aria-valuetext', percent === 0 ? 'Muted' : percent+' percent');
+          control.querySelector('[data-volume-output]').value = percent+'%';
+        });
+      }
+      function saveVolume() {
+        try { localStorage.setItem(storageKey, String(audio.muted ? 0 : audio.volume)); } catch (_) {}
+      }
+      try {
+        const stored = localStorage.getItem(storageKey);
+        const volume = stored === null || !stored.trim() ? NaN : Number(stored);
+        if (Number.isFinite(volume) && volume >= 0 && volume <= 1) audio.volume = volume;
+      } catch (_) {}
+      controls.forEach(control => {
+        const slider = control.querySelector('[data-paper-volume]');
+        slider.addEventListener('input', () => {
+          audio.volume = Math.max(0, Math.min(1, Number(slider.value)/100));
+          audio.muted = false;
+          syncVolume(); saveVolume();
+        });
+        // Adjusting volume must not open the reader or trigger playback shortcuts.
+        control.addEventListener('click', event => event.stopPropagation());
+        control.addEventListener('keydown', event => {
+          if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown',' '].includes(event.key)) event.stopPropagation();
+        });
+      });
+      audio.addEventListener('volumechange', () => { syncVolume(); saveVolume(); });
+      syncVolume();
+    })();
   </script>
 </body>
 </html>

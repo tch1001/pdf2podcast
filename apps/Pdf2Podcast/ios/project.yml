@@ -81,10 +81,11 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
           NSExtensionAttributes:
             NSExtensionActivationRule: >-
-              extensionItems.@count == 1 AND SUBQUERY(extensionItems, $item,
-              $item.attachments.@count == 1 AND SUBQUERY($item.attachments, $attachment,
-              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf"
-              ).@count == 1).@count == 1
+              SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $attachment,
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" OR
+              ANY $attachment.registeredTypeIdentifiers == "public.data"
+              ).@count >= 1).@count >= 1
     entitlements:
       path: Pdf2PodcastShare/Pdf2PodcastShare.entitlements
       properties:

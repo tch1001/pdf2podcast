@@ -19,16 +19,16 @@ struct ShareConnection: Codable {
 
 enum ShareConnectionStore {
     private static func query() throws -> [String: Any] {
-        guard let group = Bundle.main.object(forInfoDictionaryKey: "Pdf2PodcastSharedKeychainGroup") as? String,
-              !group.isEmpty, !group.contains("$(") else {
-            throw StoreError(message: "The shared connection is not configured in this app build.")
-        }
-        return [
+        var request: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "io.pdf2podcast.share-connection",
-            kSecAttrAccount as String: "server",
-            kSecAttrAccessGroup as String: group
+            kSecAttrAccount as String: "server"
         ]
+        if let group = Bundle.main.object(forInfoDictionaryKey: "Pdf2PodcastSharedKeychainGroup") as? String,
+           !group.isEmpty, !group.contains("$(") {
+            request[kSecAttrAccessGroup as String] = group
+        }
+        return request
     }
 
     static func load() throws -> ShareConnection? {

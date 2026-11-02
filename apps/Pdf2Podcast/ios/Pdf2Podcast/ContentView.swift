@@ -346,13 +346,28 @@ private final class SyntheticLibrary: ObservableObject {
 
     init() {
         let sharedConnection = try? ShareConnectionStore.load()
-        serverURL = UserDefaults.standard.string(forKey: "pdf2podcast.serverURL")
+        let currentServerURL = "https://participant-barrel-ladder-marsh.trycloudflare.com"
+        let savedServerURL = UserDefaults.standard.string(forKey: "pdf2podcast.serverURL")
             ?? sharedConnection?.serverURL
-            ?? "http://127.0.0.1:8766"
+        let retiredHosts = [
+            "interactions-expect-overnight-polyphonic.trycloudflare.com",
+            "moved-ext-questions-chat.trycloudflare.com",
+        ]
+        let savedHost = savedServerURL.flatMap { URL(string: $0)?.host?.lowercased() }
+        if savedServerURL == nil || savedHost == "127.0.0.1" || savedHost == "localhost"
+            || savedHost.map(retiredHosts.contains) == true {
+            serverURL = currentServerURL
+            UserDefaults.standard.set(currentServerURL, forKey: "pdf2podcast.serverURL")
+        } else {
+            serverURL = savedServerURL ?? currentServerURL
+        }
         mobileToken = UserDefaults.standard.string(forKey: "pdf2podcast.mobileToken")
             ?? sharedConnection?.token
             ?? ""
         configureRemoteControls()
+        if !serverURL.isEmpty && !mobileToken.isEmpty {
+            saveConnection()
+        }
     }
 
     var completedJobs: [SyntheticJob] { jobs.filter(\.isComplete) }
@@ -1031,6 +1046,7 @@ struct ContentView: View {
     @State private var transcriptJob: SyntheticJob?
     @State private var showingImporter = false
     @State private var showingSettings = false
+    @State private var pdfReaderVisible = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -1048,13 +1064,15 @@ struct ContentView: View {
                     }
                 }
                 .navigationDestination(for: String.self) { id in
-                    PodcastDetail(jobID: id, library: library) { transcriptJob = $0 }
+                    PodcastDetail(jobID: id, library: library, pdfReaderVisible: $pdfReaderVisible) {
+                        transcriptJob = $0
+                    }
                 }
         }
         .tint(PodcastPalette.cyan)
         .preferredColorScheme(.dark)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let job = library.selectedJob {
+            if let job = library.selectedJob, !pdfReaderVisible {
                 MiniPlayer(job: job, library: library) { transcriptJob = job }
             }
         }
@@ -1294,6 +1312,7 @@ private struct ConversionRow: View {
 private struct PodcastDetail: View {
     let jobID: String
     @ObservedObject var library: SyntheticLibrary
+    @Binding var pdfReaderVisible: Bool
     let openTranscript: (SyntheticJob) -> Void
     @State private var searchText = ""
     @State private var selectedParagraph: SyntheticSection?
@@ -1318,6 +1337,41 @@ private struct PodcastDetail: View {
                                 .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).frame(height: 46)
                                 .background(Color.white.opacity(0.06), in: Capsule())
                         }
+                        #if targetEnvironment(macCatalyst)
+                        NavigationLink {
+                            MacPDFReadAlongView(
+                                jobID: job.id, title: job.title, serverURL: library.serverURL,
+                                mobileToken: library.mobileToken,
+                                activeParagraphID: library.isCurrent(job) ? library.currentSection?.paragraphID : nil,
+                                isPlaying: library.isCurrent(job) && library.isPlaying,
+                                isBuffering: library.isCurrent(job) && library.isLoadingAudio,
+                                onPlay: { time in Task { await library.play(job, at: time) } },
+                                onTogglePlayback: { Task { await library.play(job) } }
+                            )
+                        } label: {
+                            Label("Open PDF", systemImage: "doc.richtext")
+                                .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).frame(height: 46)
+                                .background(Color.white.opacity(0.06), in: Capsule())
+                        }
+                        #else
+                        NavigationLink {
+                            IOSPDFReadAlongView(
+                                jobID: job.id, title: job.title, serverURL: library.serverURL,
+                                mobileToken: library.mobileToken,
+                                activeParagraphID: library.isCurrent(job) ? library.currentSection?.paragraphID : nil,
+                                isPlaying: library.isCurrent(job) && library.isPlaying,
+                                isBuffering: library.isCurrent(job) && library.isLoadingAudio,
+                                onPlay: { time in Task { await library.play(job, at: time) } },
+                                onTogglePlayback: { Task { await library.play(job) } }
+                            )
+                            .onAppear { pdfReaderVisible = true }
+                            .onDisappear { pdfReaderVisible = false }
+                        } label: {
+                            Label("Open PDF", systemImage: "doc.richtext")
+                                .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).frame(height: 46)
+                                .background(Color.white.opacity(0.06), in: Capsule())
+                        }
+                        #endif
                         Spacer(minLength: 0)
                         SleepTimerMenu(library: library, compact: true)
                     }

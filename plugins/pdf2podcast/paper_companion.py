@@ -40,16 +40,14 @@ Allowed kinds:
   possible, never more than 25 words or 200 characters. Ground the explanation in
   this paragraph and the supplied paper context. Retain uncertainty and negation.
   Never invent authors' intentions, importance, causal claims or external context.
-- caption: a figure's explanatory caption, NOT the text printed inside its diagram.
-  Group each original figure caption, including its printed label and panel
-  explanations, as a read-along paragraph. Use its actual figure label as the topic
-  for navigation. Give the same short purpose/motivation summary as for prose.
-  Do not classify a figure label as a chapter heading. Keep caption text separate
-  from plot axes, legends, plotted values, tick labels and diagram annotations.
+- caption: a figure's caption, printed figure label, or panel explanation. Classify
+  these separately so they can be OMITTED entirely, without narration or summaries.
+  Never merge captions into body paragraphs or treat them as section headings.
+  Ignore intervening captions when joining a genuine body paragraph continuation.
 - figure_text: text INSIDE a diagram/plot, including axis labels, ticks, legend
   labels, node names and plotted values. This is omitted from narration. Use the
-  supplied figure_text_hint and caption_hint geometry. Captions and scientific
-  paragraphs discussing a figure must NEVER be omitted as figure_text.
+  supplied figure_text_hint and caption_hint geometry. Scientific body paragraphs
+  discussing a figure remain prose; the figure and its caption are both omitted.
 - metadata: author lists, affiliations, correspondence details, publication dates,
   journal/volume/page banners, DOI mastheads, publisher/navigation notices such as
   'Open access' and 'Check for updates', copyright/licensing boilerplate, or prose
@@ -63,9 +61,11 @@ Allowed kinds:
 - references: bibliography entries ONLY under an actual References/Bibliography heading.
 - artifact: isolated unreadable glyphs, never readable words or sentences.
 
-CRITICAL: Retain all SCIENTIFIC narrative prose, examples, qualifications, explanatory
-captions, scientific list items and difficult text. The explicit metadata and
-inside-diagram exclusions above are not scientific narration and must be omitted.
+CRITICAL: Retain scientific BODY prose, examples, qualifications, scientific list items,
+and difficult text. Omit figures entirely, including their captions, diagram labels and
+panel descriptions, along with the metadata exclusions above. A caption/figure never
+ends a body paragraph. Respect printed paragraph spacing/indentation rather than topic
+similarity, PDF blocks, or arbitrary sentence/character limits.
 99% (465 of 471) is meaningful prose, NOT a citation or equation. Source language and
 spelling stay unchanged. Topic titles and summaries use the document's language.
 Numeric reference/affiliation markers are not part of the prose. Do not include
@@ -450,10 +450,38 @@ def reconcile_line_groups(groups: Any, lines: list[dict[str, Any]]) -> tuple[lis
     return result, repairs
 
 
+def expand_section_headings(groups: list[dict[str, Any]], lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Recover printed exclusion headings before computing state, even inside a model range."""
+    by_id = {line["id"]: line for line in lines}
+    expanded = []
+    for original in groups:
+        selected = [by_id[number] for number in range(original["start"], original["end"] + 1)]
+        source = join_lines(selected)
+        pieces = (recover_heading_prose(original, selected)
+                  if original.get("kind") == "heading" and (len(source) > 240 or len(source.split()) > 35)
+                  else [original])
+        for piece in pieces:
+            cursor = piece["start"]
+            for number in range(piece["start"], piece["end"] + 1):
+                text = by_id[number]["text"].strip()
+                if not (REFERENCE_HEADING.fullmatch(text) or METADATA_HEADING.fullmatch(text)):
+                    continue
+                if cursor < number:
+                    expanded.append({**piece, "start": cursor, "end": number - 1,
+                                     "needs_summary": True, "continues_previous": False})
+                expanded.append({"start": number, "end": number, "kind": "heading", "level": piece.get("level", 1)})
+                cursor = number + 1
+            if cursor <= piece["end"]:
+                expanded.append(piece if cursor == piece["start"] else
+                                {**piece, "start": cursor, "needs_summary": True, "continues_previous": False})
+    return expanded
+
+
 def validate_groups(value: dict[str, Any], batch: dict[str, Any]) -> dict[str, Any]:
     groups = value.get("groups")
     lines = batch["lines"]
     groups, coverage_repairs = reconcile_line_groups(groups, lines)
+    groups = expand_section_headings(groups, lines)
     cursor, last = lines[0]["id"], lines[-1]["id"]
     by_id = {line["id"]: line for line in lines}
     repaired = []
@@ -473,17 +501,25 @@ def validate_groups(value: dict[str, Any], batch: dict[str, Any]) -> dict[str, A
         if kind not in {"heading", "paragraph", "caption", "figure_text", "metadata", "equation", "references", "artifact"}:
             group = {**group, "kind": "paragraph", "needs_summary": True, "continues_previous": False}
             kind = "paragraph"
-        if kind in {"paragraph", "caption"} and not summary_is_concise(group.get("summary")):
+        if kind == "paragraph" and not summary_is_concise(group.get("summary")):
             group["needs_summary"] = True
-        if kind == "figure_text" and (any(line.get("caption_hint") for line in selected)
-                or not all(line.get("figure_text_hint") or not re.search(r"[^\W\d_]{2,}", line["text"]) for line in selected)):
-            group = {**group, "kind": "paragraph", "needs_summary": True, "continues_previous": False}
+        if kind == "figure_text":
+            if any(line.get("caption_hint") for line in selected):
+                group = {**group, "kind": "caption"}
+                kind = "caption"
+            elif not all(line.get("figure_text_hint") or not re.search(r"[^\W\d_]{2,}", line["text"]) for line in selected):
+                group = {**group, "kind": "paragraph", "needs_summary": True, "continues_previous": False}
+                kind = "paragraph"
         if kind == "metadata" and not in_metadata and group.get("metadata_reason") not in {
             "author_list", "affiliation", "publication", "publisher_notice", "rights", "administrative_section",
         }:
             group = {**group, "kind": "paragraph", "needs_summary": True, "continues_previous": False}
-        if in_metadata and group["kind"] == "paragraph":
+        if in_references and group["kind"] in {"paragraph", "metadata"}:
+            group = {**group, "kind": "references"}
+            kind = "references"
+        if in_metadata and not in_references and group["kind"] in {"paragraph", "references"}:
             group = {**group, "kind": "metadata", "metadata_reason": "administrative_section"}
+            kind = "metadata"
         if kind == "heading" and (len(source) > 240 or len(source.split()) > 35):
             repaired.extend(recover_heading_prose(group, selected))
             cursor = group["end"] + 1
@@ -523,10 +559,11 @@ def chapters_from_plans(document: dict[str, Any], plans: list[dict[str, Any]]) -
                 if chapter["sections"]:
                     chapters.append(chapter)
                 chapter = {"title": source, "source_heading": source, "level": max(1, min(6, int(group.get("level", 1)))),
+                           "source_heading_line_ids": [line["id"] for line in selected],
                            "page_start": selected[0]["page"], "page_end": selected[-1]["page"], "sections": []}
                 in_references = bool(REFERENCE_HEADING.fullmatch(source))
                 continue
-            if kind in {"equation", "artifact", "references", "figure_text", "metadata"}:
+            if kind in {"equation", "artifact", "references", "figure_text", "metadata", "caption"}:
                 if kind == "references" and not in_references:
                     raise RuntimeError("The model tried to omit text outside an actual reference-list heading.")
                 omitted.append({"reason": kind, "source_text": source, "line_ids": [line["id"] for line in selected],
@@ -540,7 +577,7 @@ def chapters_from_plans(document: dict[str, Any], plans: list[dict[str, Any]]) -
                 omitted.append({"reason": "citation_only", "source_text": raw_source,
                                 "line_ids": [line["id"] for line in selected]})
                 continue
-            summary = re.sub(r"\s+", " ", group["summary"]).strip()
+            summary = re.sub(r"\s+", " ", str(group.get("summary") or "")).strip()
             if (group.get("continues_previous") is True and chapter["sections"]
                     and chapter["sections"][-1].get("content_kind", "paragraph") == kind):
                 section = chapter["sections"][-1]
@@ -583,7 +620,7 @@ def chapters_from_plans(document: dict[str, Any], plans: list[dict[str, Any]]) -
     for chapter in chapters:
         for index, section in enumerate(chapter["sections"]):
             segments = []
-            if index == 0:
+            if index == 0 and chapter.get("source_heading_line_ids"):
                 segments.append({"speaker": "guide", "kind": "chapter_title",
                                  "lines": [chapter.get("source_heading") or chapter["title"]]})
             segments.extend([
